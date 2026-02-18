@@ -1,0 +1,14 @@
+description: Pokepelago - A Pokemon Guessing Game Randomizer
+game: Pokepelago
+name: Player{player}
+
+Pokepelago:
+  gen1: true
+  gen2: true
+  gen3: true
+  gen4: true
+  gen5: true
+  gen6: true
+  gen7: true
+  gen8: true
+  gen9: true
