@@ -3,11 +3,14 @@ import { GameProvider, useGame } from './context/GameContext';
 import { DexGrid } from './components/DexGrid';
 import { GlobalGuessInput } from './components/GlobalGuessInput';
 import { SettingsPanel } from './components/SettingsPanel';
-import { Settings, Wifi, WifiOff } from 'lucide-react';
+import { Settings, Wifi, WifiOff, PanelRightClose, PanelRightOpen, MessageSquare } from 'lucide-react';
+import { ArchipelagoLog } from './components/ArchipelagoLog';
+import { PokemonDetails } from './components/PokemonDetails';
 
 const GameContent: React.FC = () => {
   const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal } = useGame();
-  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+  const [sidebarTab, setSidebarTab] = React.useState<'log' | 'settings'>('log');
 
   if (isLoading) {
     return (
@@ -70,49 +73,86 @@ const GameContent: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-1.5 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-white"
-              title="Settings"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className={`p-1.5 rounded transition-all ${isSidebarOpen ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-400'}`}
+              title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
             >
-              <Settings size={16} />
+              {isSidebarOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
             </button>
           </div>
         </div>
       </div>
 
-      <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <div className="flex h-[calc(100vh-100px)] mt-[100px] overflow-hidden">
+        {/* Main Content */}
+        <main className={`flex-1 overflow-y-auto pb-16 ${uiSettings.widescreen ? 'px-6' : 'px-4'}`}>
+          <div className={`${uiSettings.widescreen ? 'max-w-none' : 'max-w-screen-xl'} mx-auto`}>
+            <DexGrid />
+          </div>
+        </main>
 
-      {/* Main grid area */}
-      <main className={`pt-[100px] ${uiSettings.widescreen ? 'max-w-none px-6' : 'max-w-screen-xl'} mx-auto`}>
-        <DexGrid />
+        {/* Sidebar */}
+        <aside
+          className={`
+            border-l border-gray-800 bg-gray-900/40 backdrop-blur-md transition-all duration-300 flex flex-col
+            ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 translate-x-full overflow-hidden border-none'}
+          `}
+        >
+          {/* Tabs */}
+          <div className="flex border-b border-gray-800">
+            <button
+              onClick={() => setSidebarTab('log')}
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${sidebarTab === 'log' ? 'text-blue-400 bg-blue-900/20 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <MessageSquare size={14} />
+              Log
+            </button>
+            <button
+              onClick={() => setSidebarTab('settings')}
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${sidebarTab === 'settings' ? 'text-blue-400 bg-blue-900/20 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <Settings size={14} />
+              Settings
+            </button>
+          </div>
 
-        {/* Debug Controls */}
-        <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 z-20">
-          <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 py-2">
-            <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">Debug</span>
-            <div className="flex gap-2">
-              <button
-                onClick={unlockRandom}
-                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs transition-colors border border-gray-700"
-              >
-                Unlock 1
-              </button>
-              <button
-                onClick={unlockBatch}
-                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs transition-colors border border-gray-700"
-              >
-                Unlock 10
-              </button>
-              <button
-                onClick={() => unlockPokemon(25)}
-                className="px-3 py-1 bg-yellow-900/50 hover:bg-yellow-900/80 text-yellow-200 rounded text-xs transition-colors border border-yellow-700/50"
-              >
-                Unlock Pikachu
-              </button>
-            </div>
+          <div className="flex-1 overflow-hidden">
+            {sidebarTab === 'log' ? <ArchipelagoLog /> : (
+              <div className="h-full overflow-y-auto">
+                <SettingsPanel isOpen={true} onClose={() => setIsSidebarOpen(false)} isEmbedded />
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {/* Debug Controls - inside content to not overlap sidebar */}
+      <div className="fixed bottom-0 left-0 z-20 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 transition-all duration-300" style={{ right: isSidebarOpen ? '320px' : '0' }}>
+        <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 py-2">
+          <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">Debug</span>
+          <div className="flex gap-2">
+            <button
+              onClick={unlockRandom}
+              className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs transition-colors border border-gray-700"
+            >
+              Unlock 1
+            </button>
+            <button
+              onClick={unlockBatch}
+              className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs transition-colors border border-gray-700"
+            >
+              Unlock 10
+            </button>
+            <button
+              onClick={() => unlockPokemon(25)}
+              className="px-3 py-1 bg-yellow-900/50 hover:bg-yellow-900/80 text-yellow-200 rounded text-xs transition-colors border border-yellow-700/50"
+            >
+              Unlock Pikachu
+            </button>
           </div>
         </div>
-      </main>
+      </div>
+      <PokemonDetails />
     </div>
   );
 };

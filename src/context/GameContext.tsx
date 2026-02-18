@@ -9,6 +9,21 @@ import type {
     Item
 } from 'archipelago.js';
 
+export interface LogEntry {
+    id: string;
+    timestamp: number;
+    type: 'item' | 'check' | 'hint' | 'chat' | 'system';
+    text: string;
+    color?: string; // CSS color or class
+    parts?: LogPart[];
+}
+
+export interface LogPart {
+    text: string;
+    type?: 'player' | 'item' | 'location' | 'color';
+    color?: string;
+}
+
 interface GameState {
     allPokemon: PokemonRef[];
     unlockedIds: Set<number>;
@@ -23,6 +38,7 @@ interface GameState {
         type: 'total_pokemon' | 'percentage';
         amount: number;
     };
+    logs: LogEntry[];
 }
 
 export interface UISettings {
@@ -46,10 +62,13 @@ interface GameContextType extends GameState {
     connectionError: string | null;
     connect: (info: ConnectionInfo) => Promise<void>;
     disconnect: () => void;
-    goal?: {
-        type: 'total_pokemon' | 'percentage';
-        amount: number;
-    };
+    addLog: (entry: Omit<LogEntry, 'id' | 'timestamp'>) => void;
+    say: (text: string) => void;
+    connectionInfo: ConnectionInfo;
+    setConnectionInfo: React.Dispatch<React.SetStateAction<ConnectionInfo>>;
+    selectedPokemonId: number | null;
+    setSelectedPokemonId: (id: number | null) => void;
+    getLocationName: (locationId: number) => string;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -66,6 +85,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [shinyIds, setShinyIds] = useState<Set<number>>(new Set());
     const [shadowsEnabled, setShadowsEnabled] = useState(false);
     const [goal, setGoal] = useState<{ type: 'total_pokemon' | 'percentage'; amount: number } | undefined>();
+    const [logs, setLogs] = useState<LogEntry[]>([]);
+    const [selectedPokemonId, setSelectedPokemonId] = useState<number | null>(null);
+
+    const getLocationName = useCallback((locationId: number) => {
+        if (!clientRef.current) return `Location #${locationId}`;
+        return clientRef.current.package.lookupLocationName(clientRef.current.game, locationId) || `Location #${locationId}`;
+    }, []);
+
+    const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo>(() => {
+        const saved = localStorage.getItem('pokepelago_connection');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error('Failed to parse saved connection info', e);
+            }
+        }
+        return {
+            hostname: 'archipelago.gg',
+            port: 38281,
+            slotName: 'Player1',
+            password: ''
+        };
+    });
     const [isLoading, setIsLoading] = useState(true);
     const [generationFilter, setGenerationFilter] = useState<number[]>(
         GENERATIONS.map((_, i) => i)
@@ -126,6 +169,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (clientRef.current && isConnected) {
             const locationId = LOCATION_OFFSET + id;
             clientRef.current.check(locationId);
+        }
+    }, [isConnected]);
+
+    const addLog = useCallback((entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
+        setLogs(prev => [
+            {
+                ...entry,
+                id: Math.random().toString(36).substring(7),
+                timestamp: Date.now()
+            },
+            ...prev.slice(0, 99) // Keep last 100
+        ]);
+    }, []);
+
+    const say = useCallback((text: string) => {
+        if (clientRef.current && isConnected) {
+            clientRef.current.messages.say(text);
         }
     }, [isConnected]);
 
@@ -234,11 +294,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 });
             });
 
-            // Handle Hints
+            // Generic log capturing
             client.socket.on('printJSON', (packet) => {
                 if (packet.type === 'Hint') {
-                    const item = packet.item;
-                    if (item && item.player === (client as any).slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
+                    const item = packet.item as any;
+                    if (item && item.receiving_player === client.players.self.slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
                         const dexId = (item.item as number) - ITEM_OFFSET;
                         setHintedIds(prev => {
                             const next = new Set(prev);
@@ -247,12 +307,44 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         });
                     }
                 }
+
+                if (packet.data) {
+                    const parts: LogPart[] = packet.data.map((p: any) => {
+                        let text = p.text || '';
+                        let type = p.type || 'color';
+
+                        // Resolve IDs if possible using helper maps
+                        if (p.type === 'player_id') {
+                            const pid = parseInt(p.text);
+                            text = client.players.findPlayer(pid)?.alias || `Player ${pid}`;
+                            type = 'player';
+                        } else if (p.type === 'item_id') {
+                            const iid = parseInt(p.text);
+                            const player = client.players.findPlayer(p.player);
+                            text = client.package.lookupItemName(player?.game || client.game, iid) || `Item ${iid}`;
+                            type = 'item';
+                        } else if (p.type === 'location_id') {
+                            const lid = parseInt(p.text);
+                            const player = client.players.findPlayer(p.player);
+                            text = client.package.lookupLocationName(player?.game || client.game, lid) || `Location ${lid}`;
+                            type = 'location';
+                        }
+
+                        return { text, type, color: p.color };
+                    });
+
+                    addLog({
+                        type: packet.type === 'Hint' ? 'hint' : packet.type === 'ItemSend' ? 'item' : packet.type === 'Chat' ? 'chat' : 'system',
+                        text: parts.map(p => p.text).join(''),
+                        parts
+                    });
+                }
             });
 
             // Handle LocationInfo (sometimes hints come this way or are mass-sent)
             client.socket.on('locationInfo', (packet) => {
                 packet.locations.forEach(item => {
-                    if (item.player === (client as any).slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
+                    if (item.player === client.players.self.slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
                         const dexId = (item.item as number) - ITEM_OFFSET;
                         setHintedIds(prev => {
                             const next = new Set(prev);
@@ -309,7 +401,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             connect,
             disconnect,
             shadowsEnabled,
-            goal
+            goal,
+            logs,
+            addLog,
+            say,
+            connectionInfo,
+            setConnectionInfo,
+            selectedPokemonId,
+            setSelectedPokemonId,
+            getLocationName
         }}>
             {children}
         </GameContext.Provider>

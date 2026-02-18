@@ -1,6 +1,7 @@
 import React from 'react';
 import type { PokemonRef } from '../types/pokemon';
 import { getPokespriteUrl } from '../utils/pokesprite';
+import { useGame } from '../context/GameContext';
 
 interface PokemonSlotProps {
     pokemon: PokemonRef;
@@ -9,6 +10,7 @@ interface PokemonSlotProps {
 }
 
 export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShiny = false }) => {
+    const { setSelectedPokemonId } = useGame();
     const spriteUrl = getPokespriteUrl(pokemon.name, pokemon.id, isShiny);
     const [isLoaded, setIsLoaded] = React.useState(false);
     const [hasError, setHasError] = React.useState(false);
@@ -23,8 +25,9 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
 
     return (
         <div
+            onClick={() => setSelectedPokemonId(pokemon.id)}
             className={`
-        w-11 h-11 rounded-md flex items-center justify-center transition-all duration-300 relative group
+        w-11 h-11 rounded-md flex items-center justify-center transition-all duration-300 relative group cursor-pointer hover:scale-110 active:scale-95
         ${status === 'checked'
                     ? 'bg-green-900/40 border border-green-700/60'
                     : status === 'shadow'
@@ -56,7 +59,7 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
                 </div>
             )}
 
-            {(hasError || (isVisible && !isLoaded && status !== 'locked')) && (
+            {(hasError || (isVisible && !isLoaded)) && (
                 <span className="text-[10px] text-gray-600 font-mono z-0">
                     #{pokemon.id}
                 </span>

@@ -6,23 +6,31 @@ import { X, Server, Wifi, LayoutGrid, Maximize } from 'lucide-react';
 interface SettingsPanelProps {
     isOpen: boolean;
     onClose: () => void;
+    isEmbedded?: boolean;
 }
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
-    const { generationFilter, setGenerationFilter, connect, isConnected, connectionError, disconnect, uiSettings, updateUiSettings } = useGame();
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, isEmbedded = false }) => {
+    const {
+        generationFilter,
+        setGenerationFilter,
+        connect,
+        isConnected,
+        connectionError,
+        disconnect,
+        uiSettings,
+        updateUiSettings,
+        connectionInfo,
+        setConnectionInfo
+    } = useGame();
 
-    const [hostname, setHostname] = useState('archipelago.gg');
-    const [port, setPort] = useState(38281);
-    const [slotName, setSlotName] = useState('Player1');
-    const [password, setPassword] = useState('');
     const [isConnecting, setIsConnecting] = useState(false);
 
-    if (!isOpen) return null;
+    if (!isOpen && !isEmbedded) return null;
 
     const toggleGen = (index: number) => {
         setGenerationFilter((prev: number[]) => {
             if (prev.includes(index)) {
-                if (prev.length === 1) return prev; // Keep at least one
+                if (prev.length === 1) return prev;
                 return prev.filter((i: number) => i !== index);
             }
             return [...prev, index];
@@ -30,7 +38,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
     };
 
     const selectAll = () => {
-        setGenerationFilter(GENERATIONS.map((_: unknown, i: number) => i));
+        setGenerationFilter(GENERATIONS.map((_, i) => i));
     };
 
     const deselectAll = () => {
@@ -40,197 +48,213 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
     const handleConnect = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsConnecting(true);
-        await connect({ hostname, port, slotName, password });
+        await connect(connectionInfo);
         setIsConnecting(false);
     };
 
+    const updateInfo = (updates: Partial<typeof connectionInfo>) => {
+        setConnectionInfo(prev => ({ ...prev, ...updates }));
+    };
+
+    const settingsContent = (
+        <div className={`space-y-8 ${isEmbedded ? 'p-4 pb-20' : 'p-6'}`}>
+            {/* Connection Section */}
+            <section className="space-y-4">
+                <h3 className={`font-bold uppercase tracking-wider text-gray-500 border-b border-gray-800 pb-2 flex items-center gap-2 ${isEmbedded ? 'text-[10px]' : 'text-sm'}`}>
+                    <Server size={isEmbedded ? 14 : 18} className="text-blue-400" />
+                    Connection
+                </h3>
+
+                {!isConnected ? (
+                    <form onSubmit={handleConnect} className="space-y-4">
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="col-span-2">
+                                <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Server</label>
+                                <input
+                                    type="text"
+                                    value={connectionInfo.hostname}
+                                    onChange={(e) => updateInfo({ hostname: e.target.value })}
+                                    className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
+                                    placeholder="archipelago.gg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Port</label>
+                                <input
+                                    type="number"
+                                    value={connectionInfo.port}
+                                    onChange={(e) => updateInfo({ port: Number(e.target.value) })}
+                                    className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Slot Name</label>
+                                <input
+                                    type="text"
+                                    value={connectionInfo.slotName}
+                                    onChange={(e) => updateInfo({ slotName: e.target.value })}
+                                    className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Password</label>
+                                <input
+                                    type="password"
+                                    value={connectionInfo.password}
+                                    onChange={(e) => updateInfo({ password: e.target.value })}
+                                    className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        {connectionError && (
+                            <div className="text-[10px] text-red-400 bg-red-900/10 p-2 rounded border border-red-900/30">
+                                {connectionError}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={isConnecting}
+                            className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:text-gray-400 text-white rounded text-xs font-bold transition-colors shadow-lg shadow-blue-900/20"
+                        >
+                            {isConnecting ? 'CONNECTING...' : 'CONNECT'}
+                        </button>
+                    </form>
+                ) : (
+                    <div className="bg-green-900/10 border border-green-800/30 rounded p-4 flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-green-900/30 flex items-center justify-center text-green-400">
+                                    <Wifi size={16} />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-bold text-green-400 uppercase tracking-widest">Connected</div>
+                                    <div className="text-[10px] text-gray-400">as {connectionInfo.slotName}</div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={disconnect}
+                                className="text-[10px] px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors border border-gray-700"
+                            >
+                                DISCONNECT
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </section>
+
+            {/* Generations Section */}
+            <section className="space-y-4">
+                <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                    <h3 className={`font-bold uppercase tracking-wider text-gray-500 ${isEmbedded ? 'text-[10px]' : 'text-sm'}`}>Generations</h3>
+                    {isConnected && (
+                        <span className="text-[9px] text-blue-400 bg-blue-900/10 px-2 py-0.5 rounded border border-blue-900/30">Synced</span>
+                    )}
+                </div>
+
+                {!isConnected && (
+                    <div className="flex justify-end space-x-2 text-[10px] mb-2 uppercase tracking-wide">
+                        <button onClick={selectAll} className="text-blue-400 hover:text-blue-300">All</button>
+                        <span className="text-gray-600">|</span>
+                        <button onClick={deselectAll} className="text-blue-400 hover:text-blue-300">Reset</button>
+                    </div>
+                )}
+
+                <div className={`grid gap-2 ${isEmbedded ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+                    {GENERATIONS.map((gen, index) => {
+                        const isSelected = generationFilter.includes(index);
+                        return (
+                            <button
+                                key={gen.label}
+                                onClick={() => !isConnected && toggleGen(index)}
+                                disabled={isConnected}
+                                className={`
+                                    px-3 py-2 rounded border text-left transition-all relative overflow-hidden group
+                                    ${isSelected
+                                        ? 'bg-blue-600/10 border-blue-500 text-blue-100'
+                                        : 'bg-gray-800/30 border-gray-700 text-gray-500 hover:bg-gray-800 hover:border-gray-600'}
+                                    ${isConnected ? 'cursor-not-allowed opacity-60' : ''}
+                                `}
+                            >
+                                <div className="font-bold text-[11px] relative z-10">{gen.label}</div>
+                                <div className="text-[9px] opacity-60 relative z-10 group-hover:opacity-100 transition-opacity whitespace-nowrap overflow-hidden text-ellipsis">{gen.region}</div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </section>
+
+            {/* Interface Section */}
+            <section className="space-y-4">
+                <h3 className={`font-bold uppercase tracking-wider text-gray-500 border-b border-gray-800 pb-2 ${isEmbedded ? 'text-[10px]' : 'text-sm'}`}>Interface</h3>
+                <div className={`grid gap-3 ${isEmbedded ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    <label className="flex items-center justify-between p-3 bg-gray-800/30 border border-gray-700 rounded hover:bg-gray-800/50 transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-2">
+                            <Maximize size={16} className="text-purple-400 group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="text-xs font-bold text-gray-200">Widescreen</div>
+                                <div className="text-[9px] text-gray-500">Full page width</div>
+                            </div>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={uiSettings.widescreen}
+                            onChange={(e) => updateUiSettings({ widescreen: e.target.checked })}
+                            className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-purple-600 focus:ring-purple-500"
+                        />
+                    </label>
+
+                    <label className="flex items-center justify-between p-3 bg-gray-800/30 border border-gray-700 rounded hover:bg-gray-800/50 transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-2">
+                            <LayoutGrid size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="text-xs font-bold text-gray-200">Fit Regions</div>
+                                <div className="text-[9px] text-gray-500">Remove gaps</div>
+                            </div>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={uiSettings.masonry}
+                            onChange={(e) => updateUiSettings({ masonry: e.target.checked })}
+                            className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-emerald-600 focus:ring-emerald-500"
+                        />
+                    </label>
+                </div>
+            </section>
+        </div>
+    );
+
+    if (isEmbedded) {
+        return <div className="h-full overflow-y-auto custom-scrollbar">{settingsContent}</div>;
+    }
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-700 flex flex-col max-h-[90vh]">
-                <div className="p-6 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-800 flex flex-col max-h-[90vh] overflow-hidden">
+                <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-950/50">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-3">
                         <Server className="text-blue-400" />
                         Settings
                     </h2>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition-colors">
-                        <X size={24} />
+                    <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-all">
+                        <X size={20} />
                     </button>
                 </div>
 
-                <div className="overflow-y-auto p-6 space-y-8">
-
-                    {/* Connection Section */}
-                    <section className="space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-200 border-b border-gray-700 pb-2">Archipelago Connection</h3>
-
-                        {!isConnected ? (
-                            <form onSubmit={handleConnect} className="space-y-4">
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="col-span-2">
-                                        <label className="block text-xs text-gray-400 mb-1">Server</label>
-                                        <input
-                                            type="text"
-                                            value={hostname}
-                                            onChange={(e) => setHostname(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white focus:border-blue-500 outline-none"
-                                            placeholder="archipelago.gg"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-400 mb-1">Port</label>
-                                        <input
-                                            type="number"
-                                            value={port}
-                                            onChange={(e) => setPort(Number(e.target.value))}
-                                            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white focus:border-blue-500 outline-none"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs text-gray-400 mb-1">Slot Name</label>
-                                        <input
-                                            type="text"
-                                            value={slotName}
-                                            onChange={(e) => setSlotName(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white focus:border-blue-500 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-400 mb-1">Password</label>
-                                        <input
-                                            type="password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white focus:border-blue-500 outline-none"
-                                        />
-                                    </div>
-                                </div>
-
-                                {connectionError && (
-                                    <div className="text-red-400 text-xs bg-red-900/20 p-2 rounded border border-red-900/50">
-                                        {connectionError}
-                                    </div>
-                                )}
-
-                                <button
-                                    type="submit"
-                                    disabled={isConnecting}
-                                    className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:text-gray-400 text-white rounded font-medium transition-colors flex items-center justify-center gap-2"
-                                >
-                                    {isConnecting ? 'Connecting...' : 'Connect'}
-                                </button>
-                            </form>
-                        ) : (
-                            <div className="bg-green-900/20 border border-green-800 rounded p-4 flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-green-900/40 flex items-center justify-center text-green-400">
-                                        <Wifi size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-green-400">Connected</div>
-                                        <div className="text-xs text-gray-400">as {slotName}</div>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={disconnect}
-                                    className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded border border-gray-700 transition-colors"
-                                >
-                                    Disconnect
-                                </button>
-                            </div>
-                        )}
-                    </section>
-
-                    {/* Generations Section (only enabled if offline, otherwise synced from server settings) */}
-                    <section className="space-y-4">
-                        <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-                            <h3 className="text-lg font-semibold text-gray-200">Generations</h3>
-                            {isConnected && (
-                                <span className="text-xs text-blue-400 bg-blue-900/20 px-2 py-0.5 rounded border border-blue-900/40">Synced from Server</span>
-                            )}
-                        </div>
-
-                        {!isConnected && (
-                            <div className="flex justify-end space-x-2 text-sm mb-2">
-                                <button onClick={selectAll} className="text-blue-400 hover:text-blue-300">Select All</button>
-                                <span className="text-gray-600">|</span>
-                                <button onClick={deselectAll} className="text-blue-400 hover:text-blue-300">Reset</button>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {GENERATIONS.map((gen, index) => {
-                                const isSelected = generationFilter.includes(index);
-                                return (
-                                    <button
-                                        key={gen.label}
-                                        onClick={() => !isConnected && toggleGen(index)}
-                                        disabled={isConnected}
-                                        className={`
-                      px-4 py-3 rounded-lg border text-left transition-all relative overflow-hidden
-                      ${isSelected
-                                                ? 'bg-blue-600/20 border-blue-500 text-blue-100'
-                                                : 'bg-gray-700/50 border-gray-600 text-gray-400 hover:bg-gray-700'}
-                      ${isConnected ? 'cursor-not-allowed opacity-80' : ''}
-                    `}
-                                    >
-                                        <div className="font-medium relative z-10">{gen.label}</div>
-                                        <div className="text-xs opacity-70 relative z-10">{gen.region} · #{gen.startId}-#{gen.endId}</div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </section>
-
-                    {/* Interface Section */}
-                    <section className="space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-200 border-b border-gray-700 pb-2 flex items-center gap-2">
-                            Interface
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <label className="flex items-center justify-between p-3 bg-gray-700/30 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <Maximize size={18} className="text-purple-400" />
-                                    <div>
-                                        <div className="text-sm font-medium text-gray-200">Widescreen</div>
-                                        <div className="text-[10px] text-gray-500">Use full page width</div>
-                                    </div>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    checked={uiSettings.widescreen}
-                                    onChange={(e) => updateUiSettings({ widescreen: e.target.checked })}
-                                    className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-purple-500 focus:ring-purple-500"
-                                />
-                            </label>
-
-                            <label className="flex items-center justify-between p-3 bg-gray-700/30 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <LayoutGrid size={18} className="text-emerald-400" />
-                                    <div>
-                                        <div className="text-sm font-medium text-gray-200">Fit Regions</div>
-                                        <div className="text-[10px] text-gray-500">Remove gaps between regions</div>
-                                    </div>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    checked={uiSettings.masonry}
-                                    onChange={(e) => updateUiSettings({ masonry: e.target.checked })}
-                                    className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-emerald-500 focus:ring-emerald-500"
-                                />
-                            </label>
-                        </div>
-                    </section>
+                <div className="overflow-y-auto custom-scrollbar">
+                    {settingsContent}
                 </div>
 
-                <div className="p-6 border-t border-gray-700 bg-gray-900/50 flex justify-end">
+                <div className="p-6 border-t border-gray-800 bg-gray-950/50 flex justify-end">
                     <button
                         onClick={onClose}
-                        className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                        className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-bold transition-all border border-gray-700"
                     >
-                        Close
+                        CLOSE
                     </button>
                 </div>
             </div>

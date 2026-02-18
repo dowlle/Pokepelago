@@ -24,9 +24,11 @@ export const DexGrid: React.FC = () => {
         return 'locked';
     };
 
+    const activeCount = generationFilter.length;
+
     const containerClass = uiSettings.masonry
-        ? "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4 px-4 pb-32 space-y-4"
-        : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 px-4 pb-32";
+        ? `columns-1 ${activeCount > 1 ? 'sm:columns-2' : ''} ${activeCount > 2 ? 'lg:columns-3' : ''} ${activeCount > 3 ? 'xl:columns-4' : ''} ${activeCount > 4 ? '2xl:columns-5' : ''} gap-4 px-4 pb-32 space-y-4`
+        : `grid grid-cols-1 ${activeCount > 1 ? 'sm:grid-cols-2' : ''} ${activeCount > 2 ? 'lg:grid-cols-3' : ''} ${activeCount > 3 ? 'xl:grid-cols-4' : ''} ${activeCount > 4 ? '2xl:grid-cols-5' : ''} gap-4 px-4 pb-32`;
 
     return (
         <div className={containerClass}>
@@ -48,6 +50,7 @@ export const DexGrid: React.FC = () => {
                         className={`
                             bg-gray-900/70 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm shadow-2xl flex flex-col h-fit
                             ${uiSettings.masonry ? 'break-inside-avoid mb-4' : ''}
+                            w-full
                         `}
                     >
                         <div className="flex justify-between items-baseline mb-3">
