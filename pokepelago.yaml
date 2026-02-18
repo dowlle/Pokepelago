@@ -1,6 +1,7 @@
 name: Player
-game: Pokepelago
-Pokepelago:
+game: pokepelago
+pokepelago:
+  # Enable or disable specific generations of Pokemon to be included in the pool.
   gen1: true
   gen2: true
   gen3: true
@@ -10,7 +11,41 @@ Pokepelago:
   gen7: true
   gen8: true
   gen9: true
+
+  # If true, unlocked Pokemon appear as black silhouettes. If false, they show a '?' icon.
   shadows: true
+
+  # The logic mode for the game.
+  # dexsanity: Finding the specific Pokemon item unlocks its location for guessing.
+  # region_lock: Finding a Region Pass (e.g., Kanto Pass) unlocks all Pokemon in that region.
+  logic_mode: region_lock
+
+  # If true, you must find the 'Type Unlock' item (e.g., Fire Unlock) to guess Pokemon of that type.
+  type_locks: true
+
+  # The number of standard Pokemon catches required before Legendary locations become available.
+  legendary_gating: 10
+
+  # Number of utility items to add to the pool.
+  # Master Ball: Guarantees a correct guess even if not unlocked.
+  # Pokegear: Removes the shadow for a specific Pokemon.
+  # Pokedex: Provides a name hint for a specific Pokemon.
+  master_ball_count: 5
+  pokegear_count: 5
+  pokedex_count: 5
+
+  # Victory conditions for the game.
+  # any_pokemon: Guess a specific number of Pokemon.
+  # percentage: Guess a percentage of all enabled Pokemon.
+  # region_completion: Guess all Pokemon in a specific region.
+  # all_legendaries: Guess all enabled Legendary Pokemon.
   goal: percentage
+
+  # The target count or percentage for victory (used for any_pokemon and percentage goals).
   goal_amount: 25
+
+  # The region name for the region_completion goal (kanto, johto, ..., paldea).
+  goal_region: kanto
+
+  # The number of random Pokemon unlocked in your inventory at the start of the game.
   starting_pokemon_count: 10
