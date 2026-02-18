@@ -5,7 +5,7 @@ import { useGame } from '../context/GameContext';
 import { PokemonSlot } from './PokemonSlot';
 
 export const DexGrid: React.FC = () => {
-    const { allPokemon, unlockedIds, checkedIds, generationFilter, uiSettings } = useGame();
+    const { allPokemon, unlockedIds, checkedIds, hintedIds, shinyIds, generationFilter, uiSettings, shadowsEnabled } = useGame();
 
     // Build a map for quick lookups
     const pokemonById = React.useMemo(() => {
@@ -14,9 +14,13 @@ export const DexGrid: React.FC = () => {
         return map;
     }, [allPokemon]);
 
-    const getStatus = (id: number): 'locked' | 'unlocked' | 'checked' => {
+    const getStatus = (id: number): 'locked' | 'unlocked' | 'checked' | 'shadow' | 'hint' => {
         if (checkedIds.has(id)) return 'checked';
-        if (unlockedIds.has(id)) return 'unlocked';
+        const hasItem = unlockedIds.has(id);
+        if (hasItem) {
+            return shadowsEnabled ? 'shadow' : 'unlocked';
+        }
+        if (hintedIds.has(id)) return 'hint';
         return 'locked';
     };
 
@@ -54,7 +58,12 @@ export const DexGrid: React.FC = () => {
                         </div>
                         <div className="flex flex-wrap gap-1.5 justify-start">
                             {pokemonInGen.map(p => (
-                                <PokemonSlot key={p.id} pokemon={p} status={getStatus(p.id)} />
+                                <PokemonSlot
+                                    key={p.id}
+                                    pokemon={p}
+                                    status={getStatus(p.id) as any}
+                                    isShiny={shinyIds.has(p.id)}
+                                />
                             ))}
                         </div>
                     </div>

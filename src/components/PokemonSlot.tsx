@@ -4,17 +4,22 @@ import { getPokespriteUrl } from '../utils/pokesprite';
 
 interface PokemonSlotProps {
     pokemon: PokemonRef;
-    status: 'locked' | 'unlocked' | 'checked';
+    status: 'locked' | 'unlocked' | 'checked' | 'shadow' | 'hint';
+    isShiny?: boolean;
 }
 
-export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status }) => {
-    const spriteUrl = getPokespriteUrl(pokemon.name);
+export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShiny = false }) => {
+    const spriteUrl = getPokespriteUrl(pokemon.name, pokemon.id, isShiny);
     const [isLoaded, setIsLoaded] = React.useState(false);
+    const [hasError, setHasError] = React.useState(false);
 
     // Reset load state when pokemon/url changes
     React.useEffect(() => {
         setIsLoaded(false);
+        setHasError(false);
     }, [spriteUrl]);
+
+    const isVisible = status === 'checked' || status === 'shadow' || status === 'hint';
 
     return (
         <div
@@ -22,27 +27,45 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status }) => 
         w-11 h-11 rounded-md flex items-center justify-center transition-all duration-300 relative group
         ${status === 'checked'
                     ? 'bg-green-900/40 border border-green-700/60'
-                    : status === 'unlocked'
-                        ? 'bg-yellow-900/30 border border-yellow-600/40'
-                        : 'bg-gray-800/60 border border-gray-700/30'
+                    : status === 'shadow'
+                        ? 'bg-blue-900/30 border border-blue-600/40'
+                        : status === 'unlocked'
+                            ? 'bg-yellow-900/30 border border-yellow-600/40'
+                            : status === 'hint'
+                                ? 'bg-indigo-950/40 border border-indigo-900/40 opacity-70'
+                                : 'bg-gray-800/60 border border-gray-700/30'
                 }
+        ${isShiny && status !== 'locked' ? 'shadow-[0_0_10px_rgba(255,215,0,0.3)]' : ''}
       `}
-            title={status === 'checked' ? pokemon.name : `#${pokemon.id}`}
+            title={status === 'checked' ? pokemon.name : status === 'hint' ? `${pokemon.name} (Hinted)` : `#${pokemon.id}`}
         >
-            {status === 'checked' && (
+            {isVisible && !hasError && (
                 <div className="absolute inset-0 flex items-center justify-center overflow-visible pointer-events-none">
                     <img
                         src={spriteUrl}
                         alt={pokemon.name}
                         onLoad={() => setIsLoaded(true)}
+                        onError={() => setHasError(true)}
                         className={`
-                            w-14 h-14 object-contain z-10 scale-[1.3] transition-all duration-300
+                            w-12 h-12 object-contain z-10 scale-[1.1] transition-all duration-300
                             ${isLoaded ? 'opacity-100' : 'opacity-0'}
-                            /* Compensate move-up because pokesprites are bottom-heavy in their frames */
-                            -translate-y-[15%] text-transparent
+                            ${status === 'shadow' || status === 'hint' ? 'brightness-0 contrast-100 opacity-60' : ''}
                         `}
                         style={{ imageRendering: 'pixelated' }}
                     />
+                </div>
+            )}
+
+            {(hasError || (isVisible && !isLoaded && status !== 'locked')) && (
+                <span className="text-[10px] text-gray-600 font-mono z-0">
+                    #{pokemon.id}
+                </span>
+            )}
+
+            {/* Shiny sparkle indicator */}
+            {isShiny && status === 'checked' && (
+                <div className="absolute top-0.5 right-0.5 z-20 animate-pulse">
+                    <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(255,215,0,0.8)]">✨</span>
                 </div>
             )}
 

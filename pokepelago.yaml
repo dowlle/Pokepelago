@@ -1,7 +1,5 @@
-description: Pokepelago - A Pokemon Guessing Game Randomizer
+name: Player
 game: Pokepelago
-name: Player{player}
-
 Pokepelago:
   gen1: true
   gen2: true
@@ -12,3 +10,7 @@ Pokepelago:
   gen7: true
   gen8: true
   gen9: true
+  shadows: true
+  goal: percentage
+  goal_amount: 25
+  starting_pokemon_count: 10

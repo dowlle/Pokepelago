@@ -13,9 +13,16 @@ interface GameState {
     allPokemon: PokemonRef[];
     unlockedIds: Set<number>;
     checkedIds: Set<number>;
+    hintedIds: Set<number>;
     isLoading: boolean;
     generationFilter: number[];
     uiSettings: UISettings;
+    shadowsEnabled: boolean;
+    shinyIds: Set<number>;
+    goal?: {
+        type: 'total_pokemon' | 'percentage';
+        amount: number;
+    };
 }
 
 export interface UISettings {
@@ -39,6 +46,10 @@ interface GameContextType extends GameState {
     connectionError: string | null;
     connect: (info: ConnectionInfo) => Promise<void>;
     disconnect: () => void;
+    goal?: {
+        type: 'total_pokemon' | 'percentage';
+        amount: number;
+    };
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -51,6 +62,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [allPokemon, setAllPokemon] = useState<PokemonRef[]>([]);
     const [unlockedIds, setUnlockedIds] = useState<Set<number>>(new Set());
     const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+    const [hintedIds, setHintedIds] = useState<Set<number>>(new Set());
+    const [shinyIds, setShinyIds] = useState<Set<number>>(new Set());
+    const [shadowsEnabled, setShadowsEnabled] = useState(false);
+    const [goal, setGoal] = useState<{ type: 'total_pokemon' | 'percentage'; amount: number } | undefined>();
     const [isLoading, setIsLoading] = useState(true);
     const [generationFilter, setGenerationFilter] = useState<number[]>(
         GENERATIONS.map((_, i) => i)
@@ -144,9 +159,29 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         newChecked.add(locId - LOCATION_OFFSET);
                     }
                 });
+                setCheckedIds(newChecked);
 
-                // Handle slot data for generation settings
+                // Sync already received items (fully reconstruct unlockedIds)
+                const receivedItems = client.items.received;
+                const newUnlocked = new Set<number>();
+                receivedItems.forEach((item) => {
+                    if (item.id >= ITEM_OFFSET && item.id < ITEM_OFFSET + 2000) {
+                        newUnlocked.add(item.id - ITEM_OFFSET);
+                    }
+                });
+                setUnlockedIds(newUnlocked);
+
+                // Reconstruct shinyIds from received items count
+                const shinyCount = receivedItems.filter(i => i.id === 105000).length;
+                if (shinyCount > 0) {
+                    const receivedPokemonIds = Array.from(newUnlocked);
+                    setShinyIds(new Set(receivedPokemonIds.slice(0, shinyCount)));
+                }
+
+                // Handle slot data for settings
                 const slotData = packet.slot_data as any || {};
+
+                // Gen filters
                 const newFilter: number[] = [];
                 if (slotData.gen1) newFilter.push(0);
                 if (slotData.gen2) newFilter.push(1);
@@ -162,11 +197,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setGenerationFilter(newFilter);
                 }
 
-                setCheckedIds(prev => {
-                    const next = new Set(prev);
-                    newChecked.forEach(id => next.add(id));
-                    return next;
-                });
+                // Shadows setting
+                setShadowsEnabled(!!slotData.shadows);
+
+                // Goal setting
+                if (slotData.goal !== undefined && slotData.goal_amount !== undefined) {
+                    setGoal({
+                        type: slotData.goal === 0 ? 'total_pokemon' : 'percentage',
+                        amount: slotData.goal_amount
+                    });
+                }
             });
 
             // Handle items via ItemsManager
@@ -175,18 +215,61 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     if (item.id >= ITEM_OFFSET && item.id < ITEM_OFFSET + 2000) {
                         const dexId = item.id - ITEM_OFFSET;
                         unlockPokemon(dexId);
+                    } else if (item.id === 105000) {
+                        // Shiny Upgrade
+                        setUnlockedIds(unlocked => {
+                            const pokemonIds = Array.from(unlocked);
+                            setShinyIds(prev => {
+                                const next = new Set(prev);
+                                // Apply to the next unlocked pokemon that isn't shiny yet
+                                const targetIdx = prev.size;
+                                if (targetIdx < pokemonIds.length) {
+                                    next.add(pokemonIds[targetIdx]);
+                                }
+                                return next;
+                            });
+                            return unlocked;
+                        });
+                    }
+                });
+            });
+
+            // Handle Hints
+            client.socket.on('printJSON', (packet) => {
+                if (packet.type === 'Hint') {
+                    const item = packet.item;
+                    if (item && item.player === (client as any).slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
+                        const dexId = (item.item as number) - ITEM_OFFSET;
+                        setHintedIds(prev => {
+                            const next = new Set(prev);
+                            next.add(dexId);
+                            return next;
+                        });
+                    }
+                }
+            });
+
+            // Handle LocationInfo (sometimes hints come this way or are mass-sent)
+            client.socket.on('locationInfo', (packet) => {
+                packet.locations.forEach(item => {
+                    if (item.player === (client as any).slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
+                        const dexId = (item.item as number) - ITEM_OFFSET;
+                        setHintedIds(prev => {
+                            const next = new Set(prev);
+                            next.add(dexId);
+                            return next;
+                        });
                     }
                 });
             });
 
             await client.login(url, info.slotName, 'Pokepelago', {
                 password: info.password,
-                items: itemsHandlingFlags.all, // Corrected property name
+                items: itemsHandlingFlags.all,
             });
 
         } catch (err: any) {
             console.error('Connection failed', err);
-            // LoginError might be thrown
             setConnectionError(err.message || 'Failed to connect');
             setIsConnected(false);
         }
@@ -198,6 +281,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             clientRef.current = null;
         }
         setIsConnected(false);
+        setUnlockedIds(new Set());
+        setCheckedIds(new Set());
+        setHintedIds(new Set());
     };
 
     const updateUiSettings = (newSettings: Partial<UISettings>) => {
@@ -209,6 +295,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             allPokemon,
             unlockedIds,
             checkedIds,
+            hintedIds,
+            shinyIds,
             isLoading,
             generationFilter,
             setGenerationFilter,
@@ -220,6 +308,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             connectionError,
             connect,
             disconnect,
+            shadowsEnabled,
+            goal
         }}>
             {children}
         </GameContext.Provider>

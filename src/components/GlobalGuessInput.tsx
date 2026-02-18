@@ -24,8 +24,16 @@ export const GlobalGuessInput: React.FC = () => {
         // Try to find a match that is unlocked and not yet checked
         const match = allPokemon.find(p => {
             const baseName = p.name.toLowerCase();
+            const normalisedBase = baseName.replace(/-normal$/, ''); // handle -normal suffix
             const displayName = baseName.replace(/-/g, ' ');
-            return (baseName === normalised || displayName === normalised)
+            const displayNameNoNormal = displayName.replace(/ normal$/, '');
+
+            const isMatch = baseName === normalised ||
+                normalisedBase === normalised ||
+                displayName === normalised ||
+                displayNameNoNormal === normalised;
+
+            return isMatch
                 && unlockedIds.has(p.id)
                 && !checkedIds.has(p.id);
         });
@@ -43,8 +51,14 @@ export const GlobalGuessInput: React.FC = () => {
         // Find matching pokemon
         const match = allPokemon.find(p => {
             const baseName = p.name.toLowerCase();
+            const normalisedBase = baseName.replace(/-normal$/, '');
             const displayName = baseName.replace(/-/g, ' ');
-            return baseName === normalised || displayName === normalised;
+            const displayNameNoNormal = displayName.replace(/ normal$/, '');
+
+            return baseName === normalised ||
+                normalisedBase === normalised ||
+                displayName === normalised ||
+                displayNameNoNormal === normalised;
         });
 
         if (!match) {

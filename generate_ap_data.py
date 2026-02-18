@@ -24,6 +24,7 @@ def generate_ap_data():
             clean_name = f"Pokemon #{p_id}"
             ap_id = 100000 + p_id
             f.write(f"    '{clean_name}': {ap_id},\n")
+        f.write("    'Shiny Upgrade': 105000,\n")
         f.write("}\n")
 
     # Generate locations.py

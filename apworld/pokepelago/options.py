@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from Options import Toggle, Choice, OptionSet, PerGameCommonOptions
+from Options import Toggle, Choice, Range, OptionSet, PerGameCommonOptions
 
 class EnableGen1(Toggle):
     """Enable Generation 1 Pokemon (Kanto)"""
@@ -46,6 +46,34 @@ class EnableGen9(Toggle):
     display_name = "Enable Gen 9"
     default = True
 
+class Shadows(Choice):
+    """How to display unlocked but unguessed Pokemon. Shadows makes them silhouettes. Not Guessable means they stay hidden until hinted (or shadows enabled)."""
+    display_name = "Shadows"
+    option_off = 0
+    option_on = 1
+    default = 1
+
+class Goal(Choice):
+    """The goal of the game."""
+    display_name = "Goal"
+    option_total_pokemon = 0
+    option_percentage = 1
+    default = 0
+
+class GoalAmount(Range):
+    """The amount required for the goal (count or percentage)."""
+    display_name = "Goal Amount"
+    range_start = 1
+    range_end = 1025
+    default = 50
+
+class StartingPokemonCount(Range):
+    """The number of Pokemon given to the player at the start."""
+    display_name = "Starting Pokemon Count"
+    range_start = 1
+    range_end = 50
+    default = 5
+
 @dataclass
 class PokepelagoOptions(PerGameCommonOptions):
     gen1: EnableGen1
@@ -57,3 +85,7 @@ class PokepelagoOptions(PerGameCommonOptions):
     gen7: EnableGen7
     gen8: EnableGen8
     gen9: EnableGen9
+    shadows: Shadows
+    goal: Goal
+    goal_amount: GoalAmount
+    starting_pokemon_count: StartingPokemonCount

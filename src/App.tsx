@@ -6,7 +6,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { Settings, Wifi, WifiOff } from 'lucide-react';
 
 const GameContent: React.FC = () => {
-  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings } = useGame();
+  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal } = useGame();
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   if (isLoading) {
@@ -58,6 +58,14 @@ const GameContent: React.FC = () => {
               {' / '}
               {allPokemon.length}
             </span>
+
+            {goal && (
+              <span className="text-xs text-gray-500 bg-blue-900/20 px-2 py-1 rounded border border-blue-800/30">
+                Goal: <span className="text-blue-400 font-bold">
+                  {goal.type === 'total_pokemon' ? `${checkedIds.size}/${goal.amount}` : `${Math.round((checkedIds.size / allPokemon.length) * 100)}% / ${goal.amount}%`}
+                </span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

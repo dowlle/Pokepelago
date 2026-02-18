@@ -1029,4 +1029,5 @@ item_table = {
     'Pokemon #1023': 101023,
     'Pokemon #1024': 101024,
     'Pokemon #1025': 101025,
+    'Shiny Upgrade': 105000,
 }
