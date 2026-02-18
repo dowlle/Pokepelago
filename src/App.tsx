@@ -6,6 +6,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { Settings, Wifi, WifiOff, PanelRightClose, PanelRightOpen, MessageSquare } from 'lucide-react';
 import { ArchipelagoLog } from './components/ArchipelagoLog';
 import { PokemonDetails } from './components/PokemonDetails';
+import { TypeStatus } from './components/TypeStatus';
 
 const GameContent: React.FC = () => {
   const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal } = useGame();
@@ -65,7 +66,7 @@ const GameContent: React.FC = () => {
             {goal && (
               <span className="text-xs text-gray-500 bg-blue-900/20 px-2 py-1 rounded border border-blue-800/30">
                 Goal: <span className="text-blue-400 font-bold">
-                  {goal.type === 'total_pokemon' ? `${checkedIds.size}/${goal.amount}` : `${Math.round((checkedIds.size / allPokemon.length) * 100)}% / ${goal.amount}%`}
+                  {goal.type === 'any_pokemon' ? `${checkedIds.size}/${goal.amount}` : `${Math.round((checkedIds.size / allPokemon.length) * 100)}% / ${goal.amount}%`}
                 </span>
               </span>
             )}
@@ -114,6 +115,10 @@ const GameContent: React.FC = () => {
               <Settings size={14} />
               Settings
             </button>
+          </div>
+
+          <div className="p-4 border-b border-gray-800">
+            <TypeStatus />
           </div>
 
           <div className="flex-1 overflow-hidden">

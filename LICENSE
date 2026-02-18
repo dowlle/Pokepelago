@@ -1,0 +1,21 @@
+# Pokepelago License
+
+Copyright (c) 2026 Stef Appelhof
+
+## 1. Usage Restrictions
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, and modify the Software for **personal, non-commercial purposes only**, subject to the following conditions:
+
+### 1.1 Non-Commercial Clause
+The Software may not be used for any commercial purpose, including but not limited to:
+- Selling the software or derivative works.
+- Using the software as part of a paid service.
+- Hosting the software on a platform that generates revenue from its usage.
+
+### 1.2 Attribution & Forking
+Any redistribution, derivative work, or public modification of the Software must include prominent **Attribution** to the original author (Stef Appelhof) and a link to the original repository.
+
+## 2. Trademarks & Intellectual Property
+- **Third-Party Rights**: This project is a fan-made tool for use with the Archipelago randomizer. **Pokémon** and all related names and assets are trademarks and/or copyrights of Nintendo, Creatures Inc., and GAME FREAK Inc. This project is not affiliated with, endorsed by, or sponsored by Nintendo or Game Freak.
+
+## 3. Disclaimer of Warranty
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

@@ -3,9 +3,10 @@ import type { PokemonRef } from '../types/pokemon';
 import { GENERATIONS } from '../types/pokemon';
 import { useGame } from '../context/GameContext';
 import { PokemonSlot } from './PokemonSlot';
+import { Lock } from 'lucide-react';
 
 export const DexGrid: React.FC = () => {
-    const { allPokemon, unlockedIds, checkedIds, hintedIds, shinyIds, generationFilter, uiSettings, shadowsEnabled } = useGame();
+    const { allPokemon, unlockedIds, checkedIds, hintedIds, shinyIds, generationFilter, uiSettings, shadowsEnabled, logicMode, regionPasses } = useGame();
 
     // Build a map for quick lookups
     const pokemonById = React.useMemo(() => {
@@ -16,8 +17,17 @@ export const DexGrid: React.FC = () => {
 
     const getStatus = (id: number): 'locked' | 'unlocked' | 'checked' | 'shadow' | 'hint' => {
         if (checkedIds.has(id)) return 'checked';
-        const hasItem = unlockedIds.has(id);
-        if (hasItem) {
+
+        // Revealed if individual item found OR region pass found (if in Region Lock mode)
+        let isRevealed = unlockedIds.has(id);
+        if (!isRevealed && logicMode === 1) {
+            const region = GENERATIONS.find(g => id >= g.startId && id <= g.endId)?.region;
+            if (region && regionPasses.has(region)) {
+                isRevealed = true;
+            }
+        }
+
+        if (isRevealed) {
             return shadowsEnabled ? 'shadow' : 'unlocked';
         }
         if (hintedIds.has(id)) return 'hint';
@@ -43,6 +53,7 @@ export const DexGrid: React.FC = () => {
                 }
 
                 const checkedCount = pokemonInGen.filter(p => checkedIds.has(p.id)).length;
+                const isLocked = logicMode === 1 && !regionPasses.has(gen.region);
 
                 return (
                     <div
@@ -51,10 +62,14 @@ export const DexGrid: React.FC = () => {
                             bg-gray-900/70 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm shadow-2xl flex flex-col h-fit
                             ${uiSettings.masonry ? 'break-inside-avoid mb-4' : ''}
                             w-full
+                            ${isLocked ? 'opacity-80 shadow-none' : ''}
                         `}
                     >
                         <div className="flex justify-between items-baseline mb-3">
-                            <h3 className="text-sm font-black uppercase tracking-widest text-gray-400">{gen.region}</h3>
+                            <h3 className="text-sm font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                                {gen.region}
+                                {isLocked && <Lock size={12} className="text-gray-600" />}
+                            </h3>
                             <span className="text-xs font-mono text-gray-600">
                                 {checkedCount} / {pokemonInGen.length}
                             </span>

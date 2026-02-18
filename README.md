@@ -7,7 +7,15 @@ Pokepelago is a Pokemon guessing game randomizer integrated with [Archipelago](h
 - **Guessing Game**: Unlock Pokemon silhouettes or names and guess them to progress.
 - **Archipelago Integration**: Full sync with Archipelago servers. Received items unlock Pokemon; guessing them sends location checks.
 - **Shadow Mode**: Configurable silhouetted Pokemon for an extra challenge.
-- **Hint Support**: Server-side hints (e.g., via `!hint`) reveal Pokemon shadows even if you haven't found the item yet.
+- **Special Items**: 
+    - **Master Ball**: Instantly guess a Pokemon even if not unlocked.
+    - **Pokegear**: Remove shadows for a specific Pokemon.
+    - **Pokedex**: Reveal the start of a Pokemon's name as a hint.
+- **Logic Overhaul**: 
+    - **Region Locking**: Requires finding Region Passes to guess Pokemon in that region.
+    - **Type Locking**: Requires finding Type Unlocks to guess Pokemon of that type.
+    - **Legendary Gating**: Requires guessing a set number of standard Pokemon before Legendaries become available.
+- **Hint Support**: Server-side hints reveal Pokemon shadows even if you haven't found the item yet.
 - **Widescreen & Masonry Layouts**: Customizable UI for different screen sizes.
 
 ---
@@ -32,21 +40,22 @@ npm run build
 To play with Archipelago, you need the `pokepelago.apworld` file.
 
 #### Generating AP Data
-If you want to update the Pokemon data (e.g., for new generations or balance changes):
+The game requires metadata about types and legendary status for advanced logic.
 
 ```bash
 # Requires requests library
 python generate_ap_data.py
 ```
-This script updates `apworld/pokepelago/items.py` and `apworld/pokepelago/locations.py` using data from PokeAPI.
+This script updates `apworld/pokepelago/items.py`, `apworld/pokepelago/locations.py`, and `apworld/pokepelago/data.py` using data from PokeAPI. It also prepares `src/data/pokemon_metadata.json` for the frontend.
 
 #### Creating the .apworld file
 The `.apworld` file is a zipped version of the `apworld/pokepelago` directory.
 
-1. Navigate to the `apworld` directory.
-2. Zip the `pokepelago` folder.
-3. Rename the resulting `.zip` to `pokepelago.apworld`.
-4. Place this file in your Archipelago `lib/worlds` directory.
+```bash
+# From the project root:
+python -c "import shutil; shutil.make_archive('pokepelago', 'zip', 'apworld', 'pokepelago'); import os; os.replace('pokepelago.zip', 'pokepelago.apworld')"
+```
+This creates `pokepelago.apworld` in your root directory. Place this file in your Archipelago `lib/worlds` directory.
 
 ---
 

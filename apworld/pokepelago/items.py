@@ -1,7 +1,7 @@
 from BaseClasses import Item
 
 class PokemonItem(Item):
-    game: str = "Pokepelago"
+    game: str = "pokepelago"
 
 item_table = {
     'Pokemon #1': 100001,
@@ -1030,4 +1030,40 @@ item_table = {
     'Pokemon #1024': 101024,
     'Pokemon #1025': 101025,
     'Shiny Upgrade': 105000,
+
+    # Region Passes
+    'Kanto Pass': 106001,
+    'Johto Pass': 106002,
+    'Hoenn Pass': 106003,
+    'Sinnoh Pass': 106004,
+    'Unova Pass': 106005,
+    'Kalos Pass': 106006,
+    'Alola Pass': 106007,
+    'Galar Pass': 106008,
+    'Paldea Pass': 106009,
+
+    # Type Unlocks
+    'Normal Unlock': 106101,
+    'Fire Unlock': 106102,
+    'Water Unlock': 106103,
+    'Grass Unlock': 106104,
+    'Electric Unlock': 106105,
+    'Ice Unlock': 106106,
+    'Fighting Unlock': 106107,
+    'Poison Unlock': 106108,
+    'Ground Unlock': 106109,
+    'Flying Unlock': 106110,
+    'Psychic Unlock': 106111,
+    'Bug Unlock': 106112,
+    'Rock Unlock': 106113,
+    'Ghost Unlock': 106114,
+    'Dragon Unlock': 106115,
+    'Steel Unlock': 106116,
+    'Dark Unlock': 106117,
+    'Fairy Unlock': 106118,
+
+    # Special Items
+    'Master Ball': 106201,
+    'Pokegear': 106202,
+    'Pokedex': 106203,
 }

@@ -1,7 +1,7 @@
 from BaseClasses import Location
 
 class PokemonLocation(Location):
-    game: str = "Pokepelago"
+    game: str = "pokepelago"
 
 location_table = {
     'Check #1': 200001,

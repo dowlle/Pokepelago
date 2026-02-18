@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useGame } from '../context/GameContext';
-import { X, ExternalLink, HelpCircle, MapPin, Sparkles, CheckCircle2 } from 'lucide-react';
+import { X, ExternalLink, HelpCircle, MapPin, Sparkles, CheckCircle2, Lock } from 'lucide-react';
 
 export const PokemonDetails: React.FC = () => {
     const {
@@ -12,13 +12,23 @@ export const PokemonDetails: React.FC = () => {
         hintedIds,
         shinyIds,
         say,
-        getLocationName
+        getLocationName,
+        masterBalls,
+        pokegears,
+        pokedexes,
+        useMasterBall,
+        usePokegear,
+        usePokedex,
+        usedPokegears,
+        usedPokedexes,
+        isPokemonGuessable
     } = useGame();
 
     const [details, setDetails] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [gifLoaded, setGifLoaded] = useState(false);
     const [hintSent, setHintSent] = useState(false);
+    const [itemCooldown, setItemCooldown] = useState<string | null>(null);
     const gifRef = useRef<HTMLImageElement>(null);
 
     const pokemon = allPokemon.find(p => p.id === selectedPokemonId);
@@ -60,9 +70,25 @@ export const PokemonDetails: React.FC = () => {
         setTimeout(() => setHintSent(false), 3000);
     };
 
-    const displayName = showInfo
-        ? pokemon.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-        : showShadow ? '???' : '???';
+    const handleUseItem = (item: 'master' | 'gear' | 'dex') => {
+        if (item === 'master') useMasterBall(selectedPokemonId);
+        if (item === 'gear') usePokegear(selectedPokemonId);
+        if (item === 'dex') usePokedex(selectedPokemonId);
+
+        setItemCooldown(item);
+        setTimeout(() => setItemCooldown(null), 2000);
+    };
+
+    const isPokegeared = usedPokegears.has(selectedPokemonId);
+    const isPokedexed = usedPokedexes.has(selectedPokemonId);
+    const { canGuess, reason, missingRegion, missingTypes, missingPokemon } = isPokemonGuessable(selectedPokemonId);
+
+    let displayName = '???';
+    if (showInfo) {
+        displayName = pokemon.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    } else if (isPokedexed) {
+        displayName = pokemon.name.slice(0, 3).toUpperCase() + '...';
+    }
 
     const showdownUrl = isShiny && isChecked
         ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/showdown/shiny/${selectedPokemonId}.gif`
@@ -102,7 +128,8 @@ export const PokemonDetails: React.FC = () => {
                                 onLoad={() => setGifLoaded(true)}
                                 className={`
                                     w-32 h-32 object-contain relative z-10 transition-opacity duration-300
-                                    ${showShadow ? 'brightness-0 opacity-40 contrast-100' : ''}
+                                    ${showShadow && !isPokegeared ? 'brightness-0 opacity-40 contrast-100' : ''}
+                                    ${showShadow && isPokegeared ? 'brightness-50 opacity-80' : ''}
                                     ${gifLoaded ? 'opacity-100' : 'opacity-0'}
                                 `}
                             />
@@ -176,6 +203,33 @@ export const PokemonDetails: React.FC = () => {
                         </div>
                     )}
 
+                    {/* Requirements Section */}
+                    {!isChecked && (missingRegion || missingTypes || missingPokemon) && (
+                        <div className="bg-red-900/10 border border-red-500/30 rounded-xl p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-500">
+                            <div className="flex items-center gap-2 text-red-400 font-bold text-xs uppercase tracking-wider">
+                                <Lock size={14} />
+                                <span>Missing Requirements</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {missingRegion && (
+                                    <span className="px-3 py-1 bg-red-950/60 border border-red-500/30 rounded-lg text-[10px] text-red-200 uppercase font-black tracking-widest shadow-lg">
+                                        {missingRegion} Pass
+                                    </span>
+                                )}
+                                {missingTypes && missingTypes.map((t: string) => (
+                                    <span key={t} className="px-3 py-1 bg-red-950/60 border border-red-500/30 rounded-lg text-[10px] text-red-200 uppercase font-black tracking-widest shadow-lg">
+                                        {t} Unlock
+                                    </span>
+                                ))}
+                                {missingPokemon && (missingRegion ? null : (
+                                    <span className="px-3 py-1 bg-red-950/60 border border-red-500/30 rounded-lg text-[10px] text-red-200 uppercase font-black tracking-widest shadow-lg">
+                                        Pokémon Item
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* AP Section */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between text-[10px] font-black uppercase text-gray-600 tracking-widest border-b border-gray-800 pb-2">
@@ -203,7 +257,7 @@ export const PokemonDetails: React.FC = () => {
                             </div>
                         )}
 
-                        {!isChecked && !isUnlocked && !isHinted && (
+                        {!isChecked && !isUnlocked && !isHinted && !missingRegion && (
                             <div className="space-y-3">
                                 <p className="text-[11px] text-gray-500">Don't know where this Pokémon is? Request a hint from the server.</p>
                                 <button
@@ -226,9 +280,76 @@ export const PokemonDetails: React.FC = () => {
                         )}
 
                         {isUnlocked && !isChecked && (
-                            <div className="bg-blue-900/10 border border-blue-500/20 rounded-xl p-4 flex items-middle gap-3">
+                            <div className={`bg-blue-900/10 border border-blue-500/20 rounded-xl p-4 flex items-middle gap-3 ${!canGuess ? 'opacity-50 grayscale' : ''}`}>
                                 <HelpCircle size={18} className="text-blue-400" />
-                                <span className="text-xs text-blue-300/80 font-medium">Available to guess in the grid!</span>
+                                <span className="text-xs text-blue-300/80 font-medium whitespace-pre-line">
+                                    {canGuess ? "Available to guess in the grid!" : reason}
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Special Items Section */}
+                        {!isChecked && (
+                            <div className="pt-2">
+                                <div className="flex items-center justify-between text-[10px] font-black uppercase text-gray-600 tracking-widest border-b border-gray-800 pb-2 mb-4">
+                                    <span>Utility Items</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {/* Pokegear */}
+                                    <button
+                                        onClick={() => handleUseItem('gear')}
+                                        disabled={pokegears === 0 || isPokegeared || !!itemCooldown}
+                                        className={`
+                                            group relative flex flex-col items-center justify-center p-3 rounded-2xl border transition-all
+                                            ${isPokegeared
+                                                ? 'bg-indigo-900/30 border-indigo-500/50 scale-105 shadow-[0_0_15px_rgba(99,102,241,0.2)]'
+                                                : 'bg-gray-800/40 border-gray-700/50 hover:bg-gray-700/50 active:scale-95 disabled:opacity-30 disabled:grayscale disabled:hover:bg-gray-800/40'}
+                                        `}
+                                    >
+                                        <div className="w-10 h-10 flex items-center justify-center mb-1">
+                                            <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-gear.png" className="w-8 h-8 object-contain" alt="Pokegear" />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-tighter text-gray-300">Gear</span>
+                                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-indigo-600 rounded-full border-2 border-gray-900 flex items-center justify-center text-[10px] font-black text-white shadow-lg">
+                                            {pokegears}
+                                        </div>
+                                    </button>
+
+                                    {/* Pokedex */}
+                                    <button
+                                        onClick={() => handleUseItem('dex')}
+                                        disabled={pokedexes === 0 || isPokedexed || !!itemCooldown}
+                                        className={`
+                                            group relative flex flex-col items-center justify-center p-3 rounded-2xl border transition-all
+                                            ${isPokedexed
+                                                ? 'bg-blue-900/30 border-blue-500/50 scale-105 shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                                                : 'bg-gray-800/40 border-gray-700/50 hover:bg-gray-700/50 active:scale-95 disabled:opacity-30 disabled:grayscale disabled:hover:bg-gray-800/40'}
+                                        `}
+                                    >
+                                        <div className="w-10 h-10 flex items-center justify-center mb-1">
+                                            <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/pokedex.png" className="w-8 h-8 object-contain" alt="Pokedex" />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-tighter text-gray-300">Hints</span>
+                                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-600 rounded-full border-2 border-gray-900 flex items-center justify-center text-[10px] font-black text-white shadow-lg">
+                                            {pokedexes}
+                                        </div>
+                                    </button>
+
+                                    {/* Master Ball */}
+                                    <button
+                                        onClick={() => handleUseItem('master')}
+                                        disabled={masterBalls === 0 || !!itemCooldown}
+                                        className="group relative flex flex-col items-center justify-center p-3 rounded-2xl border bg-gray-800/40 border-gray-700/50 hover:bg-red-900/20 hover:border-red-500/40 active:scale-95 disabled:opacity-30 disabled:grayscale disabled:hover:bg-gray-800/40 transition-all"
+                                    >
+                                        <div className="w-10 h-10 flex items-center justify-center mb-1">
+                                            <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/master-ball.png" className="w-8 h-8 object-contain" alt="Master Ball" />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-tighter text-gray-300">Reveal</span>
+                                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 rounded-full border-2 border-gray-900 flex items-center justify-center text-[10px] font-black text-white shadow-lg">
+                                            {masterBalls}
+                                        </div>
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -239,10 +360,10 @@ export const PokemonDetails: React.FC = () => {
                                 href={`https://vgc.pokedata.ovh/pokemon/${selectedPokemonId}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-gray-500 hover:text-blue-400 flex items-center gap-1 transition-colors"
+                                className="text-gray-500 hover:text-blue-400 flex items-center gap-1 transition-colors capitalize font-bold tracking-widest"
                             >
                                 <ExternalLink size={10} />
-                                VIEW ON VGC POKEDATA
+                                View on VGC PokeData
                             </a>
                         </div>
                     )}

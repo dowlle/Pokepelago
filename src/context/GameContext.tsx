@@ -8,6 +8,7 @@ import type {
     ConnectionRefusedPacket,
     Item
 } from 'archipelago.js';
+import pokemonMetadata from '../data/pokemon_metadata.json';
 
 export interface LogEntry {
     id: string;
@@ -34,9 +35,17 @@ interface GameState {
     uiSettings: UISettings;
     shadowsEnabled: boolean;
     shinyIds: Set<number>;
+    logicMode: number;
+    typeLocksEnabled: boolean;
+    regionPasses: Set<string>;
+    typeUnlocks: Set<string>;
+    masterBalls: number;
+    pokegears: number;
+    pokedexes: number;
     goal?: {
-        type: 'total_pokemon' | 'percentage';
+        type: 'any_pokemon' | 'percentage' | 'region_completion' | 'all_legendaries';
         amount: number;
+        region?: string;
     };
     logs: LogEntry[];
 }
@@ -69,6 +78,19 @@ interface GameContextType extends GameState {
     selectedPokemonId: number | null;
     setSelectedPokemonId: (id: number | null) => void;
     getLocationName: (locationId: number) => string;
+    isPokemonGuessable: (id: number) => {
+        canGuess: boolean;
+        reason?: string;
+        missingRegion?: string;
+        missingTypes?: string[];
+        missingPokemon?: boolean;
+    };
+    useMasterBall: (pokemonId: number) => void;
+    usePokegear: (pokemonId: number) => void;
+    usePokedex: (pokemonId: number) => void;
+    usedMasterBalls: Set<number>;
+    usedPokegears: Set<number>;
+    usedPokedexes: Set<number>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -84,9 +106,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [hintedIds, setHintedIds] = useState<Set<number>>(new Set());
     const [shinyIds, setShinyIds] = useState<Set<number>>(new Set());
     const [shadowsEnabled, setShadowsEnabled] = useState(false);
-    const [goal, setGoal] = useState<{ type: 'total_pokemon' | 'percentage'; amount: number } | undefined>();
+    const [goal, setGoal] = useState<GameState['goal'] | undefined>();
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [selectedPokemonId, setSelectedPokemonId] = useState<number | null>(null);
+    const [logicMode, setLogicMode] = useState(0);
+    const [typeLocksEnabled, setTypeLocksEnabled] = useState(false);
+    const [regionPasses, setRegionPasses] = useState<Set<string>>(new Set());
+    const [typeUnlocks, setTypeUnlocks] = useState<Set<string>>(new Set());
+    const [masterBalls, setMasterBalls] = useState(0);
+    const [pokegears, setPokegears] = useState(0);
+    const [pokedexes, setPokedexes] = useState(0);
+    const [usedMasterBalls, setUsedMasterBalls] = useState<Set<number>>(new Set());
+    const [usedPokegears, setUsedPokegears] = useState<Set<number>>(new Set());
+    const [usedPokedexes, setUsedPokedexes] = useState<Set<number>>(new Set());
 
     const getLocationName = useCallback((locationId: number) => {
         if (!clientRef.current) return `Location #${locationId}`;
@@ -260,11 +292,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // Shadows setting
                 setShadowsEnabled(!!slotData.shadows);
 
+                // New Logic settings
+                setLogicMode(slotData.logic_mode || 0);
+                setTypeLocksEnabled(!!slotData.type_locks);
+
                 // Goal setting
                 if (slotData.goal !== undefined && slotData.goal_amount !== undefined) {
+                    const goalTypes: ('any_pokemon' | 'percentage' | 'region_completion' | 'all_legendaries')[] =
+                        ['any_pokemon', 'percentage', 'region_completion', 'all_legendaries'];
+                    const regions = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"];
                     setGoal({
-                        type: slotData.goal === 0 ? 'total_pokemon' : 'percentage',
-                        amount: slotData.goal_amount
+                        type: goalTypes[slotData.goal] || 'any_pokemon',
+                        amount: slotData.goal_amount,
+                        region: slotData.goal_region ? regions[slotData.goal_region - 1] : undefined
                     });
                 }
             });
@@ -290,6 +330,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                             });
                             return unlocked;
                         });
+                    } else if (item.id >= 106001 && item.id <= 106009) {
+                        const regions = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"];
+                        const regionName = regions[item.id - 106001];
+                        setRegionPasses(prev => new Set(prev).add(regionName));
+                    } else if (item.id >= 106101 && item.id <= 106118) {
+                        const types = ['Normal', 'Fire', 'Water', 'Grass', 'Electric', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic', 'Bug', 'Rock', 'Ghost', 'Dragon', 'Steel', 'Dark', 'Fairy'];
+                        const typeName = types[item.id - 106101];
+                        setTypeUnlocks(prev => new Set(prev).add(typeName));
+                    } else if (item.id === 106201) {
+                        setMasterBalls(prev => prev + 1);
+                    } else if (item.id === 106202) {
+                        setPokegears(prev => prev + 1);
+                    } else if (item.id === 106203) {
+                        setPokedexes(prev => prev + 1);
                     }
                 });
             });
@@ -355,7 +409,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 });
             });
 
-            await client.login(url, info.slotName, 'Pokepelago', {
+            await client.login(url, info.slotName, 'pokepelago', {
                 password: info.password,
                 items: itemsHandlingFlags.all,
             });
@@ -381,6 +435,79 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updateUiSettings = (newSettings: Partial<UISettings>) => {
         setUiSettings(prev => ({ ...prev, ...newSettings }));
     };
+
+    const useMasterBall = useCallback((pokemonId: number) => {
+        if (masterBalls > 0) {
+            setMasterBalls(prev => prev - 1);
+            setUsedMasterBalls(prev => new Set(prev).add(pokemonId));
+            checkPokemon(pokemonId);
+            addLog({
+                type: 'system',
+                text: `Used a Master Ball on Pokemon #${pokemonId}!`
+            });
+        }
+    }, [masterBalls, checkPokemon, addLog]);
+
+    const usePokegear = useCallback((pokemonId: number) => {
+        if (pokegears > 0) {
+            setPokegears(prev => prev - 1);
+            setUsedPokegears(prev => new Set(prev).add(pokemonId));
+            addLog({
+                type: 'system',
+                text: `Used a Pokegear on Pokemon #${pokemonId}!`
+            });
+        }
+    }, [pokegears, addLog]);
+
+    const usePokedex = useCallback((pokemonId: number) => {
+        if (pokedexes > 0) {
+            setPokedexes(prev => prev - 1);
+            setUsedPokedexes(prev => new Set(prev).add(pokemonId));
+            addLog({
+                type: 'system',
+                text: `Used a Pokedex on Pokemon #${pokemonId}!`
+            });
+        }
+    }, [pokedexes, addLog]);
+
+    const isPokemonGuessable = useCallback((id: number) => {
+        const data = (pokemonMetadata as any)[id];
+        if (!data) return { canGuess: true };
+
+        // 1. Region Check
+        if (logicMode === 1) { // Region Lock
+            const region = GENERATIONS.find(g => id >= g.startId && id <= g.endId)?.region;
+            if (region && !regionPasses.has(region)) {
+                return {
+                    canGuess: false,
+                    reason: `Requires ${region} Pass`,
+                    missingRegion: region
+                };
+            }
+        } else {
+            // In Dexsanity mode (0), if not in unlockedIds, can't guess
+            return {
+                canGuess: false,
+                reason: "Requires Pokémon item",
+                missingPokemon: true
+            };
+        }
+
+        // 2. Type Check
+        if (typeLocksEnabled) {
+            const missingTypes = data.types.filter((t: string) => !typeUnlocks.has(t.charAt(0).toUpperCase() + t.slice(1)));
+            if (missingTypes.length > 0) {
+                const formattedTypes = missingTypes.map((t: string) => t.charAt(0).toUpperCase() + t.slice(1));
+                return {
+                    canGuess: false,
+                    reason: `Requires ${formattedTypes.join(' & ')} Unlock`,
+                    missingTypes: formattedTypes
+                };
+            }
+        }
+
+        return { canGuess: true };
+    }, [logicMode, regionPasses, typeLocksEnabled, typeUnlocks, unlockedIds]);
 
     return (
         <GameContext.Provider value={{
@@ -409,7 +536,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setConnectionInfo,
             selectedPokemonId,
             setSelectedPokemonId,
-            getLocationName
+            getLocationName,
+            logicMode,
+            typeLocksEnabled,
+            regionPasses,
+            typeUnlocks,
+            masterBalls,
+            pokegears,
+            pokedexes,
+            useMasterBall,
+            usePokegear,
+            usePokedex,
+            usedMasterBalls,
+            usedPokegears,
+            usedPokedexes,
+            isPokemonGuessable
         }}>
             {children}
         </GameContext.Provider>

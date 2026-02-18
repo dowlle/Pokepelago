@@ -10,7 +10,10 @@ interface PokemonSlotProps {
 }
 
 export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShiny = false }) => {
-    const { setSelectedPokemonId } = useGame();
+    const { setSelectedPokemonId, isPokemonGuessable, usedPokegears } = useGame();
+    const { canGuess, reason } = isPokemonGuessable(pokemon.id);
+    const isPokegeared = usedPokegears.has(pokemon.id);
+
     const spriteUrl = getPokespriteUrl(pokemon.name, pokemon.id, isShiny);
     const [isLoaded, setIsLoaded] = React.useState(false);
     const [hasError, setHasError] = React.useState(false);
@@ -33,14 +36,15 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
                     : status === 'shadow'
                         ? 'bg-blue-900/30 border border-blue-600/40'
                         : status === 'unlocked'
-                            ? 'bg-yellow-900/30 border border-yellow-600/40'
+                            ? (canGuess ? 'bg-yellow-900/30 border border-yellow-600/40' : 'bg-gray-900/40 border border-gray-700/60 opacity-50 grayscale cursor-not-allowed')
                             : status === 'hint'
                                 ? 'bg-indigo-950/40 border border-indigo-900/40 opacity-70'
                                 : 'bg-gray-800/60 border border-gray-700/30'
                 }
         ${isShiny && status !== 'locked' ? 'shadow-[0_0_10px_rgba(255,215,0,0.3)]' : ''}
+        ${!canGuess && status !== 'locked' && status !== 'checked' ? 'opacity-40' : ''}
       `}
-            title={status === 'checked' ? pokemon.name : status === 'hint' ? `${pokemon.name} (Hinted)` : `#${pokemon.id}`}
+            title={!canGuess ? reason : (status === 'checked' ? pokemon.name : status === 'hint' ? `${pokemon.name} (Hinted)` : `#${pokemon.id}`)}
         >
             {isVisible && !hasError && (
                 <div className="absolute inset-0 flex items-center justify-center overflow-visible pointer-events-none">
@@ -52,7 +56,9 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
                         className={`
                             w-12 h-12 object-contain z-10 scale-[1.1] transition-all duration-300
                             ${isLoaded ? 'opacity-100' : 'opacity-0'}
-                            ${status === 'shadow' || status === 'hint' ? 'brightness-0 contrast-100 opacity-60' : ''}
+                            ${status === 'shadow' || status === 'hint'
+                                ? (isPokegeared ? 'brightness-50 opacity-80' : 'brightness-0 contrast-100 opacity-60')
+                                : ''}
                         `}
                         style={{ imageRendering: 'pixelated' }}
                     />
