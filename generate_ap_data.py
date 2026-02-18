@@ -21,9 +21,7 @@ def generate_ap_data():
         f.write("class PokemonItem(Item):\n    game: str = \"Pokepelago\"\n\n")
         f.write("item_table = {\n")
         for p_id, name in results:
-            clean_name = name.title().replace("-", " ")
-            # ID offset to avoid conflicts? standard is usually safe. 
-            # Let's use 100000 + ID
+            clean_name = f"Pokemon #{p_id}"
             ap_id = 100000 + p_id
             f.write(f"    '{clean_name}': {ap_id},\n")
         f.write("}\n")
@@ -34,10 +32,9 @@ def generate_ap_data():
         f.write("class PokemonLocation(Location):\n    game: str = \"Pokepelago\"\n\n")
         f.write("location_table = {\n")
         for p_id, name in results:
-            clean_name = name.title().replace("-", " ")
-            # Location ID offset, maybe 200000 + ID
+            clean_name = f"Check #{p_id}"
             ap_id = 200000 + p_id
-            f.write(f"    '{clean_name} Check': {ap_id},\n")
+            f.write(f"    '{clean_name}': {ap_id},\n")
         f.write("}\n")
         
     print("Generated items.py and locations.py")

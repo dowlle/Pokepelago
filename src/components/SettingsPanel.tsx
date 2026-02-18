@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { GENERATIONS } from '../types/pokemon';
-import { X, Server, Wifi } from 'lucide-react';
+import { X, Server, Wifi, LayoutGrid, Maximize } from 'lucide-react';
 
 interface SettingsPanelProps {
     isOpen: boolean;
@@ -9,7 +9,7 @@ interface SettingsPanelProps {
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
-    const { generationFilter, setGenerationFilter, connect, isConnected, connectionError, disconnect } = useGame();
+    const { generationFilter, setGenerationFilter, connect, isConnected, connectionError, disconnect, uiSettings, updateUiSettings } = useGame();
 
     const [hostname, setHostname] = useState('archipelago.gg');
     const [port, setPort] = useState(38281);
@@ -181,6 +181,46 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                                     </button>
                                 );
                             })}
+                        </div>
+                    </section>
+
+                    {/* Interface Section */}
+                    <section className="space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-200 border-b border-gray-700 pb-2 flex items-center gap-2">
+                            Interface
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <label className="flex items-center justify-between p-3 bg-gray-700/30 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <Maximize size={18} className="text-purple-400" />
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-200">Widescreen</div>
+                                        <div className="text-[10px] text-gray-500">Use full page width</div>
+                                    </div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={uiSettings.widescreen}
+                                    onChange={(e) => updateUiSettings({ widescreen: e.target.checked })}
+                                    className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-purple-500 focus:ring-purple-500"
+                                />
+                            </label>
+
+                            <label className="flex items-center justify-between p-3 bg-gray-700/30 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <LayoutGrid size={18} className="text-emerald-400" />
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-200">Fit Regions</div>
+                                        <div className="text-[10px] text-gray-500">Remove gaps between regions</div>
+                                    </div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={uiSettings.masonry}
+                                    onChange={(e) => updateUiSettings({ masonry: e.target.checked })}
+                                    className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-emerald-500 focus:ring-emerald-500"
+                                />
+                            </label>
                         </div>
                     </section>
                 </div>

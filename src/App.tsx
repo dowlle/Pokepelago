@@ -6,7 +6,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { Settings, Wifi, WifiOff } from 'lucide-react';
 
 const GameContent: React.FC = () => {
-  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected } = useGame();
+  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings } = useGame();
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   if (isLoading) {
@@ -43,7 +43,7 @@ const GameContent: React.FC = () => {
 
       {/* Toolbar - below the guess input  */}
       <div className="fixed top-[52px] left-0 right-0 z-20 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800">
-        <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 py-2">
+        <div className={`${uiSettings.widescreen ? 'max-w-none px-8' : 'max-w-screen-xl'} mx-auto flex items-center justify-between px-4 py-2`}>
           <div className="flex items-center gap-3">
             {/* Connection status */}
             <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${isConnected ? 'bg-green-900/30 text-green-400' : 'bg-gray-800 text-gray-500'}`}>
@@ -75,7 +75,7 @@ const GameContent: React.FC = () => {
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       {/* Main grid area */}
-      <main className="pt-[100px] max-w-screen-xl mx-auto">
+      <main className={`pt-[100px] ${uiSettings.widescreen ? 'max-w-none px-6' : 'max-w-screen-xl'} mx-auto`}>
         <DexGrid />
 
         {/* Debug Controls */}

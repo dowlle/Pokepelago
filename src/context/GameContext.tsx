@@ -15,6 +15,12 @@ interface GameState {
     checkedIds: Set<number>;
     isLoading: boolean;
     generationFilter: number[];
+    uiSettings: UISettings;
+}
+
+export interface UISettings {
+    widescreen: boolean;
+    masonry: boolean;
 }
 
 interface ConnectionInfo {
@@ -28,6 +34,7 @@ interface GameContextType extends GameState {
     unlockPokemon: (id: number) => void;
     checkPokemon: (id: number) => void;
     setGenerationFilter: React.Dispatch<React.SetStateAction<number[]>>;
+    updateUiSettings: (settings: Partial<UISettings>) => void;
     isConnected: boolean;
     connectionError: string | null;
     connect: (info: ConnectionInfo) => Promise<void>;
@@ -51,8 +58,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const [isConnected, setIsConnected] = useState(false);
     const [connectionError, setConnectionError] = useState<string | null>(null);
+    const [uiSettings, setUiSettings] = useState<UISettings>(() => {
+        const saved = localStorage.getItem('pokepelago_ui');
+        return saved ? JSON.parse(saved) : { widescreen: false, masonry: false };
+    });
 
     const clientRef = useRef<Client | null>(null);
+
+    // Save UI settings
+    useEffect(() => {
+        localStorage.setItem('pokepelago_ui', JSON.stringify(uiSettings));
+    }, [uiSettings]);
 
     // Load initial data
     useEffect(() => {
@@ -184,6 +200,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsConnected(false);
     };
 
+    const updateUiSettings = (newSettings: Partial<UISettings>) => {
+        setUiSettings(prev => ({ ...prev, ...newSettings }));
+    };
+
     return (
         <GameContext.Provider value={{
             allPokemon,
@@ -194,6 +214,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setGenerationFilter,
             unlockPokemon,
             checkPokemon,
+            uiSettings,
+            updateUiSettings,
             isConnected,
             connectionError,
             connect,

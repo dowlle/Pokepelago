@@ -1,13 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useGame } from '../context/GameContext';
-import type { PokemonRef } from '../types/pokemon';
 import { formatPokemonName } from '../types/pokemon';
 
 export const GlobalGuessInput: React.FC = () => {
     const { allPokemon, unlockedIds, checkedIds, checkPokemon } = useGame();
     const [guess, setGuess] = useState('');
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'already'; name: string } | null>(null);
-    const [suggestions, setSuggestions] = useState<PokemonRef[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Auto-clear feedback
@@ -18,23 +16,27 @@ export const GlobalGuessInput: React.FC = () => {
         }
     }, [feedback]);
 
-    // Build suggestions as user types
+    // Auto-submit logic
     useEffect(() => {
-        if (guess.length < 2) {
-            setSuggestions([]);
-            return;
+        const normalised = guess.toLowerCase().trim();
+        if (normalised.length < 3) return; // Wait for at least 3 chars to avoid too many matches
+
+        // Try to find a match that is unlocked and not yet checked
+        const match = allPokemon.find(p => {
+            const baseName = p.name.toLowerCase();
+            const displayName = baseName.replace(/-/g, ' ');
+            return (baseName === normalised || displayName === normalised)
+                && unlockedIds.has(p.id)
+                && !checkedIds.has(p.id);
+        });
+
+        if (match) {
+            // Success! Auto-submit
+            checkPokemon(match.id);
+            setFeedback({ type: 'success', name: formatPokemonName(match.name) });
+            setGuess('');
         }
-        const lower = guess.toLowerCase().trim();
-        const matches = allPokemon
-            .filter(p => {
-                const displayName = p.name.replace(/-/g, ' ');
-                return (displayName.includes(lower) || p.name.includes(lower))
-                    && unlockedIds.has(p.id)
-                    && !checkedIds.has(p.id);
-            })
-            .slice(0, 8);
-        setSuggestions(matches);
-    }, [guess, allPokemon, unlockedIds, checkedIds]);
+    }, [guess, allPokemon, unlockedIds, checkedIds, checkPokemon]);
 
     const attemptGuess = (name: string) => {
         const normalised = name.toLowerCase().trim();
@@ -53,7 +55,6 @@ export const GlobalGuessInput: React.FC = () => {
         if (checkedIds.has(match.id)) {
             setFeedback({ type: 'already', name: formatPokemonName(match.name) });
             setGuess('');
-            setSuggestions([]);
             return;
         }
 
@@ -67,7 +68,6 @@ export const GlobalGuessInput: React.FC = () => {
         checkPokemon(match.id);
         setFeedback({ type: 'success', name: formatPokemonName(match.name) });
         setGuess('');
-        setSuggestions([]);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -75,13 +75,6 @@ export const GlobalGuessInput: React.FC = () => {
         if (!guess.trim()) return;
         attemptGuess(guess);
     };
-
-    const handleSuggestionClick = (pokemon: PokemonRef) => {
-        attemptGuess(pokemon.name);
-        inputRef.current?.focus();
-    };
-
-
 
     return (
         <div className="fixed top-0 left-0 right-0 z-30 bg-gray-950/95 backdrop-blur-md border-b border-gray-800">
@@ -106,23 +99,6 @@ export const GlobalGuessInput: React.FC = () => {
                             spellCheck={false}
                         />
                     </div>
-
-                    {/* Suggestions dropdown */}
-                    {suggestions.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg overflow-hidden shadow-xl z-40">
-                            {suggestions.map(p => (
-                                <button
-                                    key={p.id}
-                                    type="button"
-                                    onClick={() => handleSuggestionClick(p)}
-                                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors text-gray-200 flex justify-between items-center"
-                                >
-                                    <span>{formatPokemonName(p.name)}</span>
-                                    <span className="text-gray-500 text-xs">#{p.id}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
                 </form>
 
                 {/* Stats */}

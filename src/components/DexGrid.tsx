@@ -5,7 +5,7 @@ import { useGame } from '../context/GameContext';
 import { PokemonSlot } from './PokemonSlot';
 
 export const DexGrid: React.FC = () => {
-    const { allPokemon, unlockedIds, checkedIds, generationFilter } = useGame();
+    const { allPokemon, unlockedIds, checkedIds, generationFilter, uiSettings } = useGame();
 
     // Build a map for quick lookups
     const pokemonById = React.useMemo(() => {
@@ -20,8 +20,12 @@ export const DexGrid: React.FC = () => {
         return 'locked';
     };
 
+    const containerClass = uiSettings.masonry
+        ? "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4 px-4 pb-32 space-y-4"
+        : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 px-4 pb-32";
+
     return (
-        <div className="flex flex-wrap gap-4 justify-center px-2 pb-32">
+        <div className={containerClass}>
             {GENERATIONS.map((gen, genIdx) => {
                 if (!generationFilter.includes(genIdx)) return null;
 
@@ -37,16 +41,18 @@ export const DexGrid: React.FC = () => {
                 return (
                     <div
                         key={gen.label}
-                        className="bg-gray-900/70 border border-gray-700/50 rounded-lg p-3 backdrop-blur-sm shadow-xl"
-                        style={{ minWidth: '300px', maxWidth: '420px' }}
+                        className={`
+                            bg-gray-900/70 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm shadow-2xl flex flex-col h-fit
+                            ${uiSettings.masonry ? 'break-inside-avoid mb-4' : ''}
+                        `}
                     >
-                        <div className="flex justify-between items-baseline mb-2">
-                            <h3 className="text-sm font-bold text-gray-300">{gen.region}</h3>
-                            <span className="text-xs text-gray-500">
-                                {checkedCount}/{pokemonInGen.length}
+                        <div className="flex justify-between items-baseline mb-3">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-gray-400">{gen.region}</h3>
+                            <span className="text-xs font-mono text-gray-600">
+                                {checkedCount} / {pokemonInGen.length}
                             </span>
                         </div>
-                        <div className="flex flex-wrap gap-[2px]">
+                        <div className="flex flex-wrap gap-1.5 justify-start">
                             {pokemonInGen.map(p => (
                                 <PokemonSlot key={p.id} pokemon={p} status={getStatus(p.id)} />
                             ))}
