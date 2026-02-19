@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGame } from '../context/GameContext';
-import type { LogEntry } from '../context/GameContext';
 import { Send } from 'lucide-react';
 
 export const ArchipelagoLog: React.FC = () => {
@@ -56,9 +55,9 @@ export const ArchipelagoLog: React.FC = () => {
                                     {new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                 </span>
                                 <span className={`text-[8px] uppercase px-1 rounded-sm border ${log.type === 'item' ? 'border-yellow-900/50 text-yellow-600' :
-                                        log.type === 'chat' ? 'border-blue-900/50 text-blue-400' :
-                                            log.type === 'hint' ? 'border-purple-900/50 text-purple-400' :
-                                                'border-gray-800 text-gray-500'
+                                    log.type === 'chat' ? 'border-blue-900/50 text-blue-400' :
+                                        log.type === 'hint' ? 'border-purple-900/50 text-purple-400' :
+                                            'border-gray-800 text-gray-500'
                                     }`}>
                                     {log.type}
                                 </span>
