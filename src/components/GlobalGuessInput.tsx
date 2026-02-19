@@ -16,6 +16,16 @@ export const GlobalGuessInput: React.FC = () => {
         }
     }, [feedback]);
 
+    // Debug trigger
+    useEffect(() => {
+        if (guess.toLowerCase().trim() === 'iamsuper') {
+            if ((window as any).toggleDebug) {
+                (window as any).toggleDebug();
+                setGuess('');
+            }
+        }
+    }, [guess]);
+
     // Auto-submit logic
     useEffect(() => {
         const normalised = guess.toLowerCase().trim();
@@ -91,7 +101,7 @@ export const GlobalGuessInput: React.FC = () => {
     };
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-30 bg-gray-950/95 backdrop-blur-md border-b border-gray-800">
+        <div className="relative z-30 bg-gray-950 border-b border-gray-800 shrink-0">
             <div className="max-w-screen-xl mx-auto flex items-center gap-3 px-4 py-3">
                 {/* Logo */}
                 <h1 className="text-xl font-black tracking-tight bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent whitespace-nowrap hidden sm:block">

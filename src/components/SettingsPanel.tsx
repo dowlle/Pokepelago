@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { GENERATIONS } from '../types/pokemon';
-import { X, Server, Wifi, LayoutGrid, Maximize } from 'lucide-react';
+import { X, Server, Wifi, LayoutGrid, Maximize, Image, Trash2, Upload } from 'lucide-react';
+import { importFromFiles, clearAllSprites } from '../services/spriteService';
 
 interface SettingsPanelProps {
     isOpen: boolean;
@@ -20,7 +21,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
         uiSettings,
         updateUiSettings,
         connectionInfo,
-        setConnectionInfo
+        setConnectionInfo,
+        spriteCount,
+        refreshSpriteCount
     } = useGame();
 
     const [isConnecting, setIsConnecting] = useState(false);
@@ -56,8 +59,31 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
         setConnectionInfo(prev => ({ ...prev, ...updates }));
     };
 
+    const [importProgress, setImportProgress] = useState<number | null>(null);
+
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            setIsConnecting(true);
+            const count = await importFromFiles(e.target.files, (current) => {
+                setImportProgress(current);
+            });
+            await refreshSpriteCount();
+            setIsConnecting(false);
+            setImportProgress(null);
+            alert(`Successfully imported ${count} sprites! Reloading game...`);
+            window.location.reload();
+        }
+    };
+
+    const handleClearSprites = async () => {
+        if (confirm('Are you sure you want to clear all imported sprites? This will revert to placeholders.')) {
+            await clearAllSprites();
+            await refreshSpriteCount();
+        }
+    };
+
     const settingsContent = (
-        <div className={`space-y-8 ${isEmbedded ? 'p-4 pb-20' : 'p-6'}`}>
+        <div className={`space-y-8 ${isEmbedded ? 'p-4 pb-4' : 'p-6'}`}>
             {/* Connection Section */}
             <section className="space-y-4">
                 <h3 className={`font-bold uppercase tracking-wider text-gray-500 border-b border-gray-800 pb-2 flex items-center gap-2 ${isEmbedded ? 'text-[10px]' : 'text-sm'}`}>
@@ -185,6 +211,56 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
                             </button>
                         );
                     })}
+                </div>
+            </section>
+
+            {/* Sprite Management Section */}
+            <section className="space-y-4 border-t border-gray-800 pt-6">
+                <h3 className={`font-bold uppercase tracking-wider text-gray-500 border-b border-gray-800 pb-2 flex items-center gap-2 ${isEmbedded ? 'text-[10px]' : 'text-sm'}`}>
+                    <Image size={isEmbedded ? 14 : 18} className="text-yellow-400" />
+                    Sprite Management
+                </h3>
+
+                <div className="bg-gray-800/20 border border-gray-800 rounded-xl p-4 space-y-4">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <div className="text-xs font-bold text-gray-200">Local Sprites</div>
+                            <div className="text-[10px] text-gray-500">{spriteCount} sprites in storage</div>
+                        </div>
+                        {spriteCount > 0 && (
+                            <button
+                                onClick={handleClearSprites}
+                                className="p-2 text-red-500 hover:bg-red-950/30 rounded-lg transition-colors"
+                                title="Clear All Sprites"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-700 rounded-xl hover:bg-gray-800/40 hover:border-gray-600 transition-all cursor-pointer group">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                <Upload size={24} className="text-gray-500 group-hover:text-blue-400 mb-2" />
+                                <p className="text-[11px] text-gray-400 group-hover:text-gray-200 font-bold uppercase tracking-tighter">
+                                    {importProgress !== null ? `Processing ${importProgress}...` : 'Import Sprite Folder'}
+                                </p>
+                                <p className="text-[9px] text-gray-600">
+                                    {importProgress !== null ? 'Please wait' : "Select the 'sprites' directory"}
+                                </p>
+                            </div>
+                            <input
+                                type="file"
+                                className="hidden"
+                                multiple
+                                {...{ webkitdirectory: "", directory: "" } as any}
+                                onChange={handleImport}
+                            />
+                        </label>
+                        <p className="text-[9px] text-gray-500 italic text-center">
+                            Run <code className="text-gray-400 font-mono">scripts/download_sprites.py</code> locally to get sprites.
+                        </p>
+                    </div>
                 </div>
             </section>
 

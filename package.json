@@ -13,6 +13,7 @@
     "@airbreather/archipelago.js": "^2.0.5-airbreather.6",
     "archipelago.js": "^2.0.4",
     "clsx": "^2.1.1",
+    "idb": "^8.0.3",
     "lucide-react": "^0.574.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -21,7 +21,8 @@ export const PokemonDetails: React.FC = () => {
         usePokedex,
         usedPokegears,
         usedPokedexes,
-        isPokemonGuessable
+        isPokemonGuessable,
+        getSpriteUrl
     } = useGame();
 
     const [details, setDetails] = useState<any>(null);
@@ -29,6 +30,7 @@ export const PokemonDetails: React.FC = () => {
     const [gifLoaded, setGifLoaded] = useState(false);
     const [hintSent, setHintSent] = useState(false);
     const [itemCooldown, setItemCooldown] = useState<string | null>(null);
+    const [spriteUrl, setSpriteUrl] = useState<string | null>(null);
     const gifRef = useRef<HTMLImageElement>(null);
 
     const pokemon = allPokemon.find(p => p.id === selectedPokemonId);
@@ -38,6 +40,8 @@ export const PokemonDetails: React.FC = () => {
             setLoading(true);
             setGifLoaded(false);
             setHintSent(false);
+
+            // Fetch PokeAPI metadata
             fetch(`https://pokeapi.co/api/v2/pokemon/${selectedPokemonId}`)
                 .then(res => res.json())
                 .then(data => {
@@ -48,10 +52,25 @@ export const PokemonDetails: React.FC = () => {
                     console.error('Failed to fetch pokemon details', err);
                     setLoading(false);
                 });
+
+            // Fetch Local Sprite (prefer animated if possible)
+            const loadLocalSprites = async () => {
+                const isShiny = shinyIds.has(selectedPokemonId);
+                // Try animated first
+                let url = await getSpriteUrl(selectedPokemonId, { shiny: isShiny, animated: true });
+                if (!url) {
+                    // Fallback to static
+                    url = await getSpriteUrl(selectedPokemonId, { shiny: isShiny });
+                }
+                setSpriteUrl(url);
+                if (!url) setGifLoaded(true); // No sprite to load, mark as loaded to show info
+            };
+            loadLocalSprites();
         } else {
             setDetails(null);
+            setSpriteUrl(null);
         }
-    }, [selectedPokemonId]);
+    }, [selectedPokemonId, shinyIds, getSpriteUrl]);
 
     if (!selectedPokemonId || !pokemon) return null;
 
@@ -60,8 +79,8 @@ export const PokemonDetails: React.FC = () => {
     const isHinted = hintedIds.has(selectedPokemonId);
     const isShiny = shinyIds.has(selectedPokemonId);
 
-    // Only show name and real info if guessed (checked) AND GIF is loaded
-    const showInfo = isChecked && gifLoaded;
+    // Only show name and real info if guessed (checked)
+    const showInfo = isChecked;
     const showShadow = isUnlocked && !isChecked;
 
     const handleRequestHint = () => {
@@ -90,10 +109,6 @@ export const PokemonDetails: React.FC = () => {
         displayName = pokemon.name.slice(0, 3).toUpperCase() + '...';
     }
 
-    const showdownUrl = isShiny && isChecked
-        ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/showdown/shiny/${selectedPokemonId}.gif`
-        : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/showdown/${selectedPokemonId}.gif`;
-
     // Location ID = National Dex ID + 200000
     const unlockLocationName = getLocationName(selectedPokemonId + 200000);
 
@@ -121,18 +136,25 @@ export const PokemonDetails: React.FC = () => {
                             {isShiny && isChecked && (
                                 <div className="absolute -inset-8 bg-yellow-500/10 blur-3xl animate-pulse rounded-full" />
                             )}
-                            <img
-                                ref={gifRef}
-                                src={showdownUrl}
-                                alt={pokemon.name}
-                                onLoad={() => setGifLoaded(true)}
-                                className={`
-                                    w-32 h-32 object-contain relative z-10 transition-opacity duration-300
-                                    ${showShadow && !isPokegeared ? 'brightness-0 opacity-40 contrast-100' : ''}
-                                    ${showShadow && isPokegeared ? 'brightness-50 opacity-80' : ''}
-                                    ${gifLoaded ? 'opacity-100' : 'opacity-0'}
-                                `}
-                            />
+                            {spriteUrl ? (
+                                <img
+                                    ref={gifRef}
+                                    src={spriteUrl}
+                                    alt={pokemon.name}
+                                    onLoad={() => setGifLoaded(true)}
+                                    className={`
+                                        w-32 h-32 object-contain relative z-10 transition-opacity duration-300
+                                        ${showShadow && !isPokegeared ? 'brightness-0 opacity-40 contrast-100' : ''}
+                                        ${showShadow && isPokegeared ? 'brightness-50 opacity-80' : ''}
+                                        ${gifLoaded ? 'opacity-100' : 'opacity-0'}
+                                    `}
+                                />
+                            ) : (
+                                <div className="w-32 h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-700 rounded-2xl opacity-40">
+                                    <HelpCircle size={40} className="text-gray-600 mb-1" />
+                                    <span className="text-[10px] text-gray-500 font-mono">#{selectedPokemonId}</span>
+                                </div>
+                            )}
                             {!gifLoaded && !loading && (
                                 <div className="w-12 h-12 border-4 border-gray-700 rounded-full animate-spin border-t-transparent opacity-50 absolute inset-0 m-auto"></div>
                             )}
@@ -357,13 +379,13 @@ export const PokemonDetails: React.FC = () => {
                     {showInfo && (
                         <div className="flex justify-center text-[10px]">
                             <a
-                                href={`https://vgc.pokedata.ovh/pokemon/${selectedPokemonId}`}
+                                href={`https://pokemondb.net/pokedex/${pokemon.name}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-gray-500 hover:text-blue-400 flex items-center gap-1 transition-colors capitalize font-bold tracking-widest"
                             >
                                 <ExternalLink size={10} />
-                                View on VGC PokeData
+                                View on PokemonDB
                             </a>
                         </div>
                     )}

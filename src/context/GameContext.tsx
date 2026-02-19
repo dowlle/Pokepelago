@@ -9,6 +9,7 @@ import type {
     Item
 } from 'archipelago.js';
 import pokemonMetadata from '../data/pokemon_metadata.json';
+import { getSprite, countSprites, generateSpriteKey } from '../services/spriteService';
 
 export interface LogEntry {
     id: string;
@@ -91,6 +92,9 @@ interface GameContextType extends GameState {
     usedMasterBalls: Set<number>;
     usedPokegears: Set<number>;
     usedPokedexes: Set<number>;
+    spriteCount: number;
+    refreshSpriteCount: () => Promise<void>;
+    getSpriteUrl: (id: number, options?: { shiny?: boolean; animated?: boolean }) => Promise<string | null>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -119,6 +123,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [usedMasterBalls, setUsedMasterBalls] = useState<Set<number>>(new Set());
     const [usedPokegears, setUsedPokegears] = useState<Set<number>>(new Set());
     const [usedPokedexes, setUsedPokedexes] = useState<Set<number>>(new Set());
+    const [spriteCount, setSpriteCount] = useState(0);
+
+    const refreshSpriteCount = useCallback(async () => {
+        const count = await countSprites();
+        setSpriteCount(count);
+    }, []);
+
+    const getSpriteUrl = useCallback(async (id: number, options: { shiny?: boolean; animated?: boolean } = {}) => {
+        const key = generateSpriteKey(id, options);
+        const blob = await getSprite(key);
+        if (blob) {
+            return URL.createObjectURL(blob);
+        }
+        return null;
+    }, []);
+
+    useEffect(() => {
+        refreshSpriteCount();
+    }, [refreshSpriteCount]);
 
     const getLocationName = useCallback((locationId: number) => {
         if (!clientRef.current) return `Location #${locationId}`;
@@ -160,15 +183,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('pokepelago_ui', JSON.stringify(uiSettings));
     }, [uiSettings]);
 
-    // Load initial data
+    // Save Connection Info
     useEffect(() => {
-        const loadData = async () => {
+        localStorage.setItem('pokepelago_connection', JSON.stringify(connectionInfo));
+    }, [connectionInfo]);
+
+    // Load initial data and auto-connect
+    useEffect(() => {
+        const loadDataAndConnect = async () => {
             setIsLoading(true);
             const data = await fetchAllPokemon();
             setAllPokemon(data);
             setIsLoading(false);
+
+            // Auto-reconnect if previously connected
+            const wasConnected = localStorage.getItem('pokepelago_connected') === 'true';
+            const savedConnection = localStorage.getItem('pokepelago_connection');
+            if (wasConnected && savedConnection) {
+                try {
+                    const info = JSON.parse(savedConnection);
+                    connect(info);
+                } catch (e) {
+                    console.error('Auto-connect failed', e);
+                }
+            }
         };
-        loadData();
+        loadDataAndConnect();
     }, []);
 
     // Cleanup on unmount
@@ -414,6 +454,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 items: itemsHandlingFlags.all,
             });
 
+            localStorage.setItem('pokepelago_connected', 'true');
+
         } catch (err: any) {
             console.error('Connection failed', err);
             setConnectionError(err.message || 'Failed to connect');
@@ -427,6 +469,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             clientRef.current = null;
         }
         setIsConnected(false);
+        localStorage.setItem('pokepelago_connected', 'false');
         setUnlockedIds(new Set());
         setCheckedIds(new Set());
         setHintedIds(new Set());
@@ -550,6 +593,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             usedMasterBalls,
             usedPokegears,
             usedPokedexes,
+            spriteCount,
+            refreshSpriteCount,
+            getSpriteUrl,
             isPokemonGuessable
         }}>
             {children}

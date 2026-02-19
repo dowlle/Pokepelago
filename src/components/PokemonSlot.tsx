@@ -1,6 +1,5 @@
 import React from 'react';
 import type { PokemonRef } from '../types/pokemon';
-import { getPokespriteUrl } from '../utils/pokesprite';
 import { useGame } from '../context/GameContext';
 
 interface PokemonSlotProps {
@@ -10,15 +9,29 @@ interface PokemonSlotProps {
 }
 
 export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShiny = false }) => {
-    const { setSelectedPokemonId, isPokemonGuessable, usedPokegears } = useGame();
+    const { setSelectedPokemonId, isPokemonGuessable, usedPokegears, getSpriteUrl } = useGame();
     const { canGuess, reason } = isPokemonGuessable(pokemon.id);
     const isPokegeared = usedPokegears.has(pokemon.id);
 
-    const spriteUrl = getPokespriteUrl(pokemon.name, pokemon.id, isShiny);
+    const [spriteUrl, setSpriteUrl] = React.useState<string | null>(null);
     const [isLoaded, setIsLoaded] = React.useState(false);
     const [hasError, setHasError] = React.useState(false);
 
-    // Reset load state when pokemon/url changes
+    // Load sprite from local storage
+    React.useEffect(() => {
+        let active = true;
+        const loadSprite = async () => {
+            const url = await getSpriteUrl(pokemon.id, { shiny: isShiny });
+            if (active) {
+                setSpriteUrl(url);
+                if (!url) setHasError(true);
+            }
+        };
+        loadSprite();
+        return () => { active = false; };
+    }, [pokemon.id, isShiny, getSpriteUrl]);
+
+    // Reset load state when url changes
     React.useEffect(() => {
         setIsLoaded(false);
         setHasError(false);
@@ -46,7 +59,7 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
       `}
             title={!canGuess ? reason : (status === 'checked' ? pokemon.name : status === 'hint' ? `${pokemon.name} (Hinted)` : `#${pokemon.id}`)}
         >
-            {isVisible && !hasError && (
+            {isVisible && !hasError && spriteUrl && (
                 <div className="absolute inset-0 flex items-center justify-center overflow-visible pointer-events-none">
                     <img
                         src={spriteUrl}

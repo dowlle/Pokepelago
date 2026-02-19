@@ -12,6 +12,12 @@ const GameContent: React.FC = () => {
   const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal } = useGame();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const [sidebarTab, setSidebarTab] = React.useState<'log' | 'settings'>('log');
+  const [isDebugVisible, setIsDebugVisible] = React.useState(false);
+
+  // Expose debug toggle to window for GlobalGuessInput to call
+  React.useEffect(() => {
+    (window as any).toggleDebug = () => setIsDebugVisible(prev => !prev);
+  }, []);
 
   if (isLoading) {
     return (
@@ -41,12 +47,18 @@ const GameContent: React.FC = () => {
     shuffled.slice(0, count).forEach(p => unlockPokemon(p.id));
   };
 
+  const unlockAll = () => {
+    if (confirm('Unlock EVERY Pokemon? This might lag for a second.')) {
+      allPokemon.forEach(p => unlockPokemon(p.id));
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white font-sans">
+    <div className="h-screen flex flex-col bg-gray-950 text-white font-sans overflow-hidden">
       <GlobalGuessInput />
 
-      {/* Toolbar - below the guess input  */}
-      <div className="fixed top-[52px] left-0 right-0 z-20 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800">
+      {/* Toolbar - now relative in flex flow */}
+      <div className="z-20 bg-gray-900 border-b border-gray-800 shrink-0">
         <div className={`${uiSettings.widescreen ? 'max-w-none px-8' : 'max-w-screen-xl'} mx-auto flex items-center justify-between px-4 py-2`}>
           <div className="flex items-center gap-3">
             {/* Connection status */}
@@ -84,10 +96,10 @@ const GameContent: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-100px)] mt-[100px] overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Main Content */}
         <main className={`flex-1 overflow-y-auto pb-16 ${uiSettings.widescreen ? 'px-6' : 'px-4'}`}>
-          <div className={`${uiSettings.widescreen ? 'max-w-none' : 'max-w-screen-xl'} mx-auto`}>
+          <div className={`${uiSettings.widescreen ? 'max-w-none' : 'max-w-screen-xl'} mx-auto pt-6`}>
             <DexGrid />
           </div>
         </main>
@@ -100,7 +112,7 @@ const GameContent: React.FC = () => {
           `}
         >
           {/* Tabs */}
-          <div className="flex border-b border-gray-800">
+          <div className="flex border-b border-gray-800 shrink-0">
             <button
               onClick={() => setSidebarTab('log')}
               className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${sidebarTab === 'log' ? 'text-blue-400 bg-blue-900/20 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
@@ -117,46 +129,33 @@ const GameContent: React.FC = () => {
             </button>
           </div>
 
-          <div className="p-4 border-b border-gray-800">
+          <div className="p-4 border-b border-gray-800 shrink-0">
             <TypeStatus />
           </div>
 
           <div className="flex-1 overflow-hidden">
             {sidebarTab === 'log' ? <ArchipelagoLog /> : (
-              <div className="h-full overflow-y-auto">
-                <SettingsPanel isOpen={true} onClose={() => setIsSidebarOpen(false)} isEmbedded />
-              </div>
+              <SettingsPanel isOpen={true} onClose={() => setIsSidebarOpen(false)} isEmbedded />
             )}
           </div>
         </aside>
+
+        {/* Debug Controls - inside Main/Sidebar container to be positioned at bottom of viewport */}
+        {isDebugVisible && (
+          <div className="absolute bottom-0 left-0 right-0 z-20 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 transition-all duration-300" style={{ right: isSidebarOpen ? '320px' : '0' }}>
+            <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 py-2">
+              <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">Debug</span>
+              <div className="flex gap-2">
+                <button onClick={unlockRandom} className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs border border-gray-700">Unlock 1</button>
+                <button onClick={unlockBatch} className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs border border-gray-700">Unlock 10</button>
+                <button onClick={unlockAll} className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 text-red-200 rounded text-xs border border-red-700/50">Unlock ALL</button>
+                <button onClick={() => unlockPokemon(25)} className="px-3 py-1 bg-yellow-900/50 hover:bg-yellow-900/80 text-yellow-200 rounded text-xs border border-yellow-700/50">Unlock Pikachu</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Debug Controls - inside content to not overlap sidebar */}
-      <div className="fixed bottom-0 left-0 z-20 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 transition-all duration-300" style={{ right: isSidebarOpen ? '320px' : '0' }}>
-        <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 py-2">
-          <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">Debug</span>
-          <div className="flex gap-2">
-            <button
-              onClick={unlockRandom}
-              className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs transition-colors border border-gray-700"
-            >
-              Unlock 1
-            </button>
-            <button
-              onClick={unlockBatch}
-              className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs transition-colors border border-gray-700"
-            >
-              Unlock 10
-            </button>
-            <button
-              onClick={() => unlockPokemon(25)}
-              className="px-3 py-1 bg-yellow-900/50 hover:bg-yellow-900/80 text-yellow-200 rounded text-xs transition-colors border border-yellow-700/50"
-            >
-              Unlock Pikachu
-            </button>
-          </div>
-        </div>
-      </div>
       <PokemonDetails />
     </div>
   );
