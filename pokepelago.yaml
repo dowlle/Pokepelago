@@ -1,51 +1,138 @@
-name: Player
+name: Player{number}
+description: Default Pokepelago Template
 game: pokepelago
+
 pokepelago:
-  # Enable or disable specific generations of Pokemon to be included in the pool.
-  gen1: true
-  gen2: true
-  gen3: true
-  gen4: true
-  gen5: true
-  gen6: true
-  gen7: true
-  gen8: true
-  gen9: true
+  ################
+  # Game Options #
+  ################
+  
+  # Enable specific Generations of Pokemon to be included in the pool.
+  gen1:
+    true: 1
+    false: 0
+  gen2:
+    true: 0
+    false: 1
+  gen3:
+    true: 0
+    false: 1
+  gen4:
+    true: 0
+    false: 1
+  gen5:
+    true: 0
+    false: 1
+  gen6:
+    true: 0
+    false: 1
+  gen7:
+    true: 0
+    false: 1
+  gen8:
+    true: 0
+    false: 1
+  gen9:
+    true: 0
+    false: 1
 
-  # If true, unlocked Pokemon appear as black silhouettes. If false, they show a '?' icon.
-  shadows: true
+  shadows:
+    # How to display unlocked but unguessed Pokemon. 
+    # Option 'on' makes them silhouettes. 'off' keeps them hidden until hinted.
+    off: 0
+    on: 1
 
-  # The logic mode for the game.
-  # dexsanity: Finding the specific Pokemon item unlocks its location for guessing.
-  # region_lock: Finding a Region Pass (e.g., Kanto Pass) unlocks all Pokemon in that region.
-  logic_mode: region_lock
+  #################
+  # Logic Options #
+  #################
 
-  # If true, you must find the 'Type Unlock' item (e.g., Fire Unlock) to guess Pokemon of that type.
-  type_locks: true
+  enable_dexsanity:
+    # If enabled, you must find the specific Pokemon item to guess it.
+    true: 1
+    false: 0
 
-  # The number of standard Pokemon catches required before Legendary locations become available.
-  legendary_gating: 10
+  enable_region_lock:
+    # If enabled, you must find the Region Pass to guess Pokemon in that region.
+    true: 0
+    false: 1
 
-  # Number of utility items to add to the pool.
-  # Master Ball: Guarantees a correct guess even if not unlocked.
-  # Pokegear: Removes the shadow for a specific Pokemon.
-  # Pokedex: Provides a name hint for a specific Pokemon.
-  master_ball_count: 5
-  pokegear_count: 5
-  pokedex_count: 5
+  type_locks:
+    # If enabled, you must find the 'Type Unlock' item to guess Pokemon of that type.
+    # This can be combined with other modes.
+    true: 0
+    false: 1
 
-  # Victory conditions for the game.
-  # any_pokemon: Guess a specific number of Pokemon.
-  # percentage: Guess a percentage of all enabled Pokemon.
-  # region_completion: Guess all Pokemon in a specific region.
-  # all_legendaries: Guess all enabled Legendary Pokemon.
-  goal: percentage
+  type_lock_mode:
+    # How Type Locks function for dual-type Pokemon.
+    # 'any': You can guess the Pokemon if you have ANY of its types unlocked.
+    # 'all': You must have ALL of its types unlocked to guess it.
+    any: 1
+    all: 0
 
-  # The target count or percentage for victory (used for any_pokemon and percentage goals).
-  goal_amount: 25
+  legendary_gating:
+    # The number of standard Pokemon required before Legendary locations become available.
+    # Minimum: 0, Maximum: 100
+    0: 1
 
-  # The region name for the region_completion goal (kanto, johto, ..., paldea).
-  goal_region: kanto
+  #################
+  # Item Counts   #
+  #################
+  
+  master_ball_count:
+    # Number of Master Balls in the pool. Master Balls can instantly reveal a Pokemon.
+    5: 1
 
-  # The number of random Pokemon unlocked in your inventory at the start of the game.
-  starting_pokemon_count: 10
+  pokegear_count:
+    # Number of Pokegears in the pool. Pokegears reveal the true colors of a shadow.
+    5: 1
+
+  pokedex_count:
+    # Number of Pokedexes in the pool. Pokedexes reveal hints about the Pokemon name.
+    5: 1
+
+  ######################
+  # Starting Inventory #
+  ######################
+
+  starting_pokemon_count:
+    # The number of Pokemon given to the player at the start.
+    # Minimum: 1, Maximum: 50
+    5: 1
+
+  starting_type_unlocks:
+    # The minimum number of Type Unlocks to start with if Type Locks are enabled.
+    # Minimum: 0, Maximum: 18
+    2: 1
+
+  starting_region_unlocks:
+    # The minimum number of Region Passes to start with if Region Lock is enabled.
+    # Minimum: 0, Maximum: 9
+    0: 1
+
+  #################
+  # Goal Options  #
+  #################
+
+  goal:
+    # The goal of the game.
+    any_pokemon: 1
+    percentage: 0
+    region_completion: 0
+    all_legendaries: 0
+
+  goal_amount:
+    # The amount required for the any/percentage goal.
+    # Minimum: 1, Maximum: 1025
+    50: 1
+
+  goal_region:
+    # The region required for 'region_completion' goal.
+    kanto: 1
+    johto: 0
+    hoenn: 0
+    sinnoh: 0
+    unova: 0
+    kalos: 0
+    alola: 0
+    galar: 0
+    paldea: 0

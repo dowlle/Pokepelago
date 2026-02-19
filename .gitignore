@@ -25,3 +25,7 @@ dist-ssr
 
 sprites
 scripts
+tests
+
+*.pyc
+.zip

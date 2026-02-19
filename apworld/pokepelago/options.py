@@ -53,17 +53,31 @@ class Shadows(Choice):
     option_on = 1
     default = 1
 
-class LogicMode(Choice):
-    """The logic mode for the game. 'Dexsanity' requires finding the specific Pokemon item. 'Region Lock' requires finding the Region Pass."""
-    display_name = "Logic Mode"
-    option_dexsanity = 0
-    option_region_lock = 1
-    default = 0
+class EnableDexsanity(Toggle):
+    """If enabled, you must find the specific Pokemon item to guess it."""
+    display_name = "Enable Dexsanity"
+    default = True
+
+class EnableRegionLock(Toggle):
+    """If enabled, you must find the Region Pass to guess Pokemon in that region."""
+    display_name = "Enable Region Lock"
+    default = False
 
 class TypeLocks(Toggle):
     """If enabled, you must find the 'Type Unlock' item to guess Pokemon of that type. This can be combined with other modes."""
     display_name = "Type Locks"
     default = False
+
+class TypeLockMode(Choice):
+    """
+    How Type Locks function for dual-type Pokemon.
+    'Any': You can guess the Pokemon if you have ANY of its types unlocked.
+    'All': You must have ALL of its types unlocked to guess it.
+    """
+    display_name = "Type Lock Mode"
+    option_any = 0
+    option_all = 1
+    default = 0
 
 class LegendaryGating(Range):
     """The number of standard Pokemon required before Legendary locations become available."""
@@ -130,6 +144,24 @@ class StartingPokemonCount(Range):
     range_end = 50
     default = 5
 
+class StartingTypeUnlockCount(Range):
+    """
+    The minimum number of Type Unlocks to start with if Type Locks are enabled.
+    """
+    display_name = "Starting Type Unlock Count"
+    range_start = 0
+    range_end = 18
+    default = 2
+
+class StartingRegionUnlockCount(Range):
+    """
+    The minimum number of Region Parses to start with if Region Lock is enabled.
+    """
+    display_name = "Starting Region Unlock Count"
+    range_start = 0
+    range_end = 9
+    default = 0
+
 @dataclass
 class PokepelagoOptions(PerGameCommonOptions):
     gen1: EnableGen1
@@ -142,8 +174,10 @@ class PokepelagoOptions(PerGameCommonOptions):
     gen8: EnableGen8
     gen9: EnableGen9
     shadows: Shadows
-    logic_mode: LogicMode
+    enable_dexsanity: EnableDexsanity
+    enable_region_lock: EnableRegionLock
     type_locks: TypeLocks
+    type_lock_mode: TypeLockMode
     legendary_gating: LegendaryGating
     master_ball_count: MasterBallCount
     pokegear_count: PokegearCount
@@ -152,3 +186,5 @@ class PokepelagoOptions(PerGameCommonOptions):
     goal_amount: GoalAmount
     goal_region: GoalRegion
     starting_pokemon_count: StartingPokemonCount
+    starting_type_unlocks: StartingTypeUnlockCount
+    starting_region_unlocks: StartingRegionUnlockCount

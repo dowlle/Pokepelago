@@ -1,0 +1,29 @@
+name: Player{number}
+description: Legendary Gating Test - Gen 1 & 2, Must collect 20 Pokemon before legendaries unlock
+game: pokepelago
+
+pokepelago:
+  gen1: true
+  gen2: true
+  gen3: false
+  gen4: false
+  gen5: false
+  gen6: false
+  gen7: false
+  gen8: false
+  gen9: false
+
+  enable_dexsanity: true
+  enable_region_lock: false
+  type_locks: false
+
+  # Legendary gating: must collect 20 standard Pokemon before legendary Check locations open.
+  # This tests the count_group("Pokemon") >= N access rule on legendary locations.
+  legendary_gating: 20
+
+  goal: all_legendaries
+
+  starting_pokemon_count: 5
+  master_ball_count: 5
+  pokegear_count: 5
+  pokedex_count: 5

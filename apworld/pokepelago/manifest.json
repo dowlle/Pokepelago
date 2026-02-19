@@ -1,0 +1,11 @@
+{
+    "name": "pokepelago",
+    "game_name": "pokepelago",
+    "version": "0.1.0",
+    "url": "https://github.com/dowlle/Pokepelago",
+    "authors": [
+        "dowlle"
+    ],
+    "compatibility": "0.5.0",
+    "license": "MIT"
+}
