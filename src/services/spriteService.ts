@@ -1,9 +1,8 @@
 import { openDB, type IDBPDatabase } from 'idb';
+import { parsePokemonIdFromFileName } from '../utils/pokemon';
 
 const DB_NAME = 'pokepelago-sprites';
 const STORE_NAME = 'sprites';
-
-let dbPromise: Promise<IDBPDatabase<any>> | null = null;
 
 const getDB = () => {
     if (!dbPromise) {
@@ -15,6 +14,8 @@ const getDB = () => {
     }
     return dbPromise;
 };
+
+let dbPromise: Promise<IDBPDatabase<any>> | null = null;
 
 export const saveSprite = async (key: string, blob: Blob) => {
     const db = await getDB();
@@ -57,26 +58,26 @@ export const importFromFiles = async (files: FileList | File[], onProgress?: (co
 
         // Match patterns from download_sprites.py
         if (path.includes('static/')) {
-            const id = parseInt(name.split('.')[0]);
-            if (!isNaN(id)) key = generateSpriteKey(id, {});
+            const id = parsePokemonIdFromFileName(name);
+            if (id !== null) key = generateSpriteKey(id, {});
         } else if (path.includes('shiny/')) {
-            const id = parseInt(name.split('.')[0]);
-            if (!isNaN(id)) key = generateSpriteKey(id, { shiny: true });
+            const id = parsePokemonIdFromFileName(name);
+            if (id !== null) key = generateSpriteKey(id, { shiny: true });
         } else if (path.includes('animated/')) {
             if (name.startsWith('shiny_')) {
-                const id = parseInt(name.replace('shiny_', '').split('.')[0]);
-                if (!isNaN(id)) key = generateSpriteKey(id, { shiny: true, animated: true });
+                const id = parsePokemonIdFromFileName(name.replace('shiny_', ''));
+                if (id !== null) key = generateSpriteKey(id, { shiny: true, animated: true });
             } else {
-                const id = parseInt(name.split('.')[0]);
-                if (!isNaN(id)) key = generateSpriteKey(id, { animated: true });
+                const id = parsePokemonIdFromFileName(name);
+                if (id !== null) key = generateSpriteKey(id, { animated: true });
             }
         } else {
             // Flat file import
-            const match = name.match(/^(\d+)(_shiny)?(_animated)?\.(png|gif)$/);
-            if (match) {
-                const id = parseInt(match[1]);
-                const isShiny = !!match[2];
-                const isAnimated = !!match[3] || name.endsWith('.gif');
+            const id = parsePokemonIdFromFileName(name);
+            if (id !== null) {
+                const lowerName = name.toLowerCase();
+                const isShiny = lowerName.includes('shiny');
+                const isAnimated = lowerName.endsWith('.gif') || lowerName.includes('animated');
                 key = generateSpriteKey(id, { shiny: isShiny, animated: isAnimated });
             }
         }

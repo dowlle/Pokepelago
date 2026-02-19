@@ -7,17 +7,23 @@ import { Settings, Wifi, WifiOff, PanelRightClose, PanelRightOpen, MessageSquare
 import { ArchipelagoLog } from './components/ArchipelagoLog';
 import { PokemonDetails } from './components/PokemonDetails';
 import { TypeStatus } from './components/TypeStatus';
+import { SplashScreen } from './components/SplashScreen';
 
 const GameContent: React.FC = () => {
-  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal } = useGame();
+  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal, gameMode } = useGame();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const [sidebarTab, setSidebarTab] = React.useState<'log' | 'settings'>('log');
   const [isDebugVisible, setIsDebugVisible] = React.useState(false);
 
   // Expose debug toggle to window for GlobalGuessInput to call
   React.useEffect(() => {
-    (window as any).toggleDebug = () => setIsDebugVisible(prev => !prev);
-  }, []);
+    (window as any).toggleDebug = () => setIsDebugVisible(prev => {
+      const next = !prev;
+      (window as any).isDebugVisible = next;
+      return next;
+    });
+    (window as any).isDebugVisible = isDebugVisible;
+  }, [isDebugVisible]);
 
   if (isLoading) {
     return (
@@ -52,6 +58,10 @@ const GameContent: React.FC = () => {
       allPokemon.forEach(p => unlockPokemon(p.id));
     }
   };
+
+  if (!gameMode) {
+    return <SplashScreen />;
+  }
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white font-sans overflow-hidden">

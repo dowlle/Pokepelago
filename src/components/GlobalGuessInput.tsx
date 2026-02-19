@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useGame } from '../context/GameContext';
-import { formatPokemonName } from '../types/pokemon';
+import { getCleanName } from '../utils/pokemon';
 
 export const GlobalGuessInput: React.FC = () => {
-    const { allPokemon, unlockedIds, checkedIds, checkPokemon } = useGame();
+    const { allPokemon, unlockedIds, checkedIds, checkPokemon, gameMode, isPokemonGuessable } = useGame();
     const [guess, setGuess] = useState('');
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'already'; name: string } | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -33,25 +33,30 @@ export const GlobalGuessInput: React.FC = () => {
 
         // Try to find a match that is unlocked and not yet checked
         const match = allPokemon.find(p => {
-            const baseName = p.name.toLowerCase();
-            const normalisedBase = baseName.replace(/-normal$/, ''); // handle -normal suffix
-            const displayName = baseName.replace(/-/g, ' ');
-            const displayNameNoNormal = displayName.replace(/ normal$/, '');
+            const clean = getCleanName(p.name).toLowerCase();
+            const raw = p.name.toLowerCase();
+            const strip = (s: string) => s.replace(/[^a-z0-9]/g, '');
 
-            const isMatch = baseName === normalised ||
-                normalisedBase === normalised ||
-                displayName === normalised ||
-                displayNameNoNormal === normalised;
+            const isMatch = raw === normalised ||
+                clean === normalised ||
+                strip(raw) === strip(normalised) ||
+                strip(clean) === strip(normalised);
 
-            return isMatch
-                && unlockedIds.has(p.id)
-                && !checkedIds.has(p.id);
+            if (!isMatch) return false;
+            if (checkedIds.has(p.id)) return false;
+
+            // In standalone, just check logic (gen filters). In AP, check item unlock.
+            if (gameMode === 'standalone') {
+                return isPokemonGuessable(p.id).canGuess;
+            } else {
+                return unlockedIds.has(p.id);
+            }
         });
 
         if (match) {
             // Success! Auto-submit
             checkPokemon(match.id);
-            setFeedback({ type: 'success', name: formatPokemonName(match.name) });
+            setFeedback({ type: 'success', name: getCleanName(match.name) });
             setGuess('');
         }
     }, [guess, allPokemon, unlockedIds, checkedIds, checkPokemon]);
@@ -60,15 +65,14 @@ export const GlobalGuessInput: React.FC = () => {
         const normalised = name.toLowerCase().trim();
         // Find matching pokemon
         const match = allPokemon.find(p => {
-            const baseName = p.name.toLowerCase();
-            const normalisedBase = baseName.replace(/-normal$/, '');
-            const displayName = baseName.replace(/-/g, ' ');
-            const displayNameNoNormal = displayName.replace(/ normal$/, '');
+            const clean = getCleanName(p.name).toLowerCase();
+            const raw = p.name.toLowerCase();
+            const strip = (s: string) => s.replace(/[^a-z0-9]/g, '');
 
-            return baseName === normalised ||
-                normalisedBase === normalised ||
-                displayName === normalised ||
-                displayNameNoNormal === normalised;
+            return raw === normalised ||
+                clean === normalised ||
+                strip(raw) === strip(normalised) ||
+                strip(clean) === strip(normalised);
         });
 
         if (!match) {
@@ -77,20 +81,26 @@ export const GlobalGuessInput: React.FC = () => {
         }
 
         if (checkedIds.has(match.id)) {
-            setFeedback({ type: 'already', name: formatPokemonName(match.name) });
+            setFeedback({ type: 'already', name: getCleanName(match.name) });
             setGuess('');
             return;
         }
 
-        if (!unlockedIds.has(match.id)) {
-            // Correct name, but not yet unlocked
+        if (gameMode !== 'standalone' && !unlockedIds.has(match.id)) {
+            // Correct name, but not yet unlocked (AP only)
             setFeedback({ type: 'error', name: normalised });
+            return;
+        }
+
+        if (gameMode === 'standalone' && !isPokemonGuessable(match.id).canGuess) {
+            // Correct name, but generation filtered out
+            setFeedback({ type: 'error', name: 'Generation Locked' });
             return;
         }
 
         // Success!
         checkPokemon(match.id);
-        setFeedback({ type: 'success', name: formatPokemonName(match.name) });
+        setFeedback({ type: 'success', name: getCleanName(match.name) });
         setGuess('');
     };
 
@@ -140,7 +150,38 @@ export const GlobalGuessInput: React.FC = () => {
                         }`}>
                         {feedback.type === 'success' && `✓ ${feedback.name}!`}
                         {feedback.type === 'already' && `Already guessed ${feedback.name}`}
-                        {feedback.type === 'error' && `✗ Not found or not unlocked`}
+                        {feedback.type === 'error' && `✗ ${feedback.name === guess.toLowerCase().trim() ? (gameMode === 'standalone' ? 'Generation Locked' : 'Not found or not unlocked') : feedback.name}`}
+                    </div>
+                )}
+
+                {/* Debug Hints */}
+                {window && (window as any).isDebugVisible && guess.length >= 2 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded shadow-xl max-h-48 overflow-y-auto z-50">
+                        {allPokemon
+                            .filter(p => {
+                                const clean = getCleanName(p.name).toLowerCase();
+                                return clean.includes(guess.toLowerCase()) && !checkedIds.has(p.id);
+                            })
+                            .slice(0, 10)
+                            .map(p => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => {
+                                        setGuess(getCleanName(p.name));
+                                        inputRef.current?.focus();
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-gray-800 text-xs flex justify-between items-center"
+                                >
+                                    <span>{getCleanName(p.name)}</span>
+                                    {gameMode === 'standalone' ? (
+                                        <span className="text-gray-500 text-[10px] uppercase">Available</span>
+                                    ) : unlockedIds.has(p.id) ? (
+                                        <span className="text-green-500 text-[10px] uppercase font-bold">Unlocked</span>
+                                    ) : (
+                                        <span className="text-gray-500 text-[10px] uppercase">Locked</span>
+                                    )}
+                                </button>
+                            ))}
                     </div>
                 )}
             </div>

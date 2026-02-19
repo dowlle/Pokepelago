@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { X, ExternalLink, HelpCircle, MapPin, Sparkles, CheckCircle2, Lock } from 'lucide-react';
+import { getCleanName } from '../utils/pokemon';
 
 export const PokemonDetails: React.FC = () => {
     const {
@@ -104,7 +105,7 @@ export const PokemonDetails: React.FC = () => {
 
     let displayName = '???';
     if (showInfo) {
-        displayName = pokemon.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        displayName = getCleanName(pokemon.name);
     } else if (isPokedexed) {
         displayName = pokemon.name.slice(0, 3).toUpperCase() + '...';
     }

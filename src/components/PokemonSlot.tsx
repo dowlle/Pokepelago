@@ -1,6 +1,7 @@
 import React from 'react';
 import type { PokemonRef } from '../types/pokemon';
 import { useGame } from '../context/GameContext';
+import { getCleanName } from '../utils/pokemon';
 
 interface PokemonSlotProps {
     pokemon: PokemonRef;
@@ -38,6 +39,7 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
     }, [spriteUrl]);
 
     const isVisible = status === 'checked' || status === 'shadow' || status === 'hint';
+    const cleanName = getCleanName(pokemon.name);
 
     return (
         <div
@@ -57,7 +59,7 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
         ${isShiny && status !== 'locked' ? 'shadow-[0_0_10px_rgba(255,215,0,0.3)]' : ''}
         ${!canGuess && status !== 'locked' && status !== 'checked' ? 'opacity-40' : ''}
       `}
-            title={!canGuess ? reason : (status === 'checked' ? pokemon.name : status === 'hint' ? `${pokemon.name} (Hinted)` : `#${pokemon.id}`)}
+            title={!canGuess ? reason : (status === 'checked' ? cleanName : status === 'hint' ? `${cleanName} (Hinted)` : `#${pokemon.id}`)}
         >
             {isVisible && !hasError && spriteUrl && (
                 <div className="absolute inset-0 flex items-center justify-center overflow-visible pointer-events-none">
@@ -102,7 +104,7 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
             {/* Tooltip */}
             {status === 'checked' && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-xs text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none border border-gray-700 shadow-xl">
-                    {pokemon.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                    {cleanName}
                 </div>
             )}
         </div>

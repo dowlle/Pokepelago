@@ -49,6 +49,7 @@ interface GameState {
         region?: string;
     };
     logs: LogEntry[];
+    gameMode: 'archipelago' | 'standalone' | null;
 }
 
 export interface UISettings {
@@ -93,6 +94,8 @@ interface GameContextType extends GameState {
     usedPokegears: Set<number>;
     usedPokedexes: Set<number>;
     spriteCount: number;
+    gameMode: 'archipelago' | 'standalone' | null;
+    setGameMode: (mode: 'archipelago' | 'standalone' | null) => void;
     refreshSpriteCount: () => Promise<void>;
     getSpriteUrl: (id: number, options?: { shiny?: boolean; animated?: boolean }) => Promise<string | null>;
 }
@@ -124,6 +127,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [usedPokegears, setUsedPokegears] = useState<Set<number>>(new Set());
     const [usedPokedexes, setUsedPokedexes] = useState<Set<number>>(new Set());
     const [spriteCount, setSpriteCount] = useState(0);
+    const [gameMode, setGameModeState] = useState<'archipelago' | 'standalone' | null>(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('splash')) return null;
+        return localStorage.getItem('pokepelago_gamemode') as any || null;
+    });
+
+    const setGameMode = useCallback((mode: 'archipelago' | 'standalone' | null) => {
+        setGameModeState(mode);
+        if (mode) {
+            localStorage.setItem('pokepelago_gamemode', mode);
+        } else {
+            localStorage.removeItem('pokepelago_gamemode');
+        }
+    }, []);
 
     const refreshSpriteCount = useCallback(async () => {
         const count = await countSprites();
@@ -196,10 +213,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAllPokemon(data);
             setIsLoading(false);
 
-            // Auto-reconnect if previously connected
+            // Auto-reconnect if previously connected AND mode is archipelago
             const wasConnected = localStorage.getItem('pokepelago_connected') === 'true';
             const savedConnection = localStorage.getItem('pokepelago_connection');
-            if (wasConnected && savedConnection) {
+            const savedMode = localStorage.getItem('pokepelago_gamemode');
+
+            if (savedMode === 'archipelago' && wasConnected && savedConnection) {
                 try {
                     const info = JSON.parse(savedConnection);
                     connect(info);
@@ -517,6 +536,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = (pokemonMetadata as any)[id];
         if (!data) return { canGuess: true };
 
+        // --- STANDALONE PROGRESSION ---
+        // Standalone mode is "free play" restricted only by generation settings
+        if (gameMode === 'standalone') {
+            const genIdx = GENERATIONS.findIndex(g => id >= g.startId && id <= g.endId);
+            if (genIdx === -1 || !generationFilter.includes(genIdx)) {
+                return {
+                    canGuess: false,
+                    reason: "Generation not enabled in settings"
+                };
+            }
+            return { canGuess: true };
+        }
+
+        // --- ARCHIPELAGO PROGRESSION ---
         // 1. Region Check
         if (logicMode === 1) { // Region Lock
             const region = GENERATIONS.find(g => id >= g.startId && id <= g.endId)?.region;
@@ -529,11 +562,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         } else {
             // In Dexsanity mode (0), if not in unlockedIds, can't guess
-            return {
-                canGuess: false,
-                reason: "Requires Pokémon item",
-                missingPokemon: true
-            };
+            if (!unlockedIds.has(id)) {
+                return {
+                    canGuess: false,
+                    reason: "Requires Pokémon item",
+                    missingPokemon: true
+                };
+            }
         }
 
         // 2. Type Check
@@ -550,7 +585,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         return { canGuess: true };
-    }, [logicMode, regionPasses, typeLocksEnabled, typeUnlocks, unlockedIds]);
+    }, [gameMode, generationFilter, logicMode, regionPasses, typeLocksEnabled, typeUnlocks, unlockedIds]);
 
     return (
         <GameContext.Provider value={{
@@ -596,7 +631,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             spriteCount,
             refreshSpriteCount,
             getSpriteUrl,
-            isPokemonGuessable
+            isPokemonGuessable,
+            gameMode,
+            setGameMode
         }}>
             {children}
         </GameContext.Provider>

@@ -23,7 +23,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
         connectionInfo,
         setConnectionInfo,
         spriteCount,
-        refreshSpriteCount
+        refreshSpriteCount,
+        gameMode,
+        setGameMode
     } = useGame();
 
     const [isConnecting, setIsConnecting] = useState(false);
@@ -92,64 +94,80 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
                 </h3>
 
                 {!isConnected ? (
-                    <form onSubmit={handleConnect} className="space-y-4">
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="col-span-2">
-                                <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Server</label>
-                                <input
-                                    type="text"
-                                    value={connectionInfo.hostname}
-                                    onChange={(e) => updateInfo({ hostname: e.target.value })}
-                                    className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
-                                    placeholder="archipelago.gg"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Port</label>
-                                <input
-                                    type="number"
-                                    value={connectionInfo.port}
-                                    onChange={(e) => updateInfo({ port: Number(e.target.value) })}
-                                    className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
-                                />
-                            </div>
+                    gameMode === 'standalone' ? (
+                        <div className="bg-gray-800/40 border border-gray-700 rounded-xl p-4 text-center space-y-3">
+                            <p className="text-[10px] text-gray-400">You are currently playing in <strong>Standalone Mode</strong>. Progress is saved locally in your browser.</p>
+                            <button
+                                onClick={() => {
+                                    if (confirm('Switch to Archipelago mode? Your local guess progress will remain, but game logic will sync with the server.')) {
+                                        setGameMode('archipelago');
+                                    }
+                                }}
+                                className="w-full py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded text-xs font-bold transition-colors"
+                            >
+                                SWITCH TO ARCHIPELAGO
+                            </button>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Slot Name</label>
-                                <input
-                                    type="text"
-                                    value={connectionInfo.slotName}
-                                    onChange={(e) => updateInfo({ slotName: e.target.value })}
-                                    className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
-                                />
+                    ) : (
+                        <form onSubmit={handleConnect} className="space-y-4">
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="col-span-2">
+                                    <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Server</label>
+                                    <input
+                                        type="text"
+                                        value={connectionInfo.hostname}
+                                        onChange={(e) => updateInfo({ hostname: e.target.value })}
+                                        className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
+                                        placeholder="archipelago.gg"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Port</label>
+                                    <input
+                                        type="number"
+                                        value={connectionInfo.port}
+                                        onChange={(e) => updateInfo({ port: Number(e.target.value) })}
+                                        className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Password</label>
-                                <input
-                                    type="password"
-                                    value={connectionInfo.password}
-                                    onChange={(e) => updateInfo({ password: e.target.value })}
-                                    className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
-                                />
-                            </div>
-                        </div>
 
-                        {connectionError && (
-                            <div className="text-[10px] text-red-400 bg-red-900/10 p-2 rounded border border-red-900/30">
-                                {connectionError}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Slot Name</label>
+                                    <input
+                                        type="text"
+                                        value={connectionInfo.slotName}
+                                        onChange={(e) => updateInfo({ slotName: e.target.value })}
+                                        className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 mb-1 uppercase tracking-tight">Password</label>
+                                    <input
+                                        type="password"
+                                        value={connectionInfo.password}
+                                        onChange={(e) => updateInfo({ password: e.target.value })}
+                                        className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-white outline-none focus:border-blue-500"
+                                    />
+                                </div>
                             </div>
-                        )}
 
-                        <button
-                            type="submit"
-                            disabled={isConnecting}
-                            className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:text-gray-400 text-white rounded text-xs font-bold transition-colors shadow-lg shadow-blue-900/20"
-                        >
-                            {isConnecting ? 'CONNECTING...' : 'CONNECT'}
-                        </button>
-                    </form>
+                            {connectionError && (
+                                <div className="text-[10px] text-red-400 bg-red-900/10 p-2 rounded border border-red-900/30">
+                                    {connectionError}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={isConnecting}
+                                className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:text-gray-400 text-white rounded text-xs font-bold transition-colors shadow-lg shadow-blue-900/20"
+                            >
+                                {isConnecting ? 'CONNECTING...' : 'CONNECT'}
+                            </button>
+                        </form>
+                    )
                 ) : (
                     <div className="bg-green-900/10 border border-green-800/30 rounded p-4 flex flex-col gap-3">
                         <div className="flex items-center justify-between">
@@ -299,6 +317,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
                             className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-emerald-600 focus:ring-emerald-500"
                         />
                     </label>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-gray-800/50">
+                    <button
+                        onClick={() => {
+                            if (confirm('Reset Game Mode? This will return you to the splash screen. Your local progress (imported sprites and checked/guessed Pokémon) will NOT be deleted.')) {
+                                setGameMode(null);
+                            }
+                        }}
+                        className="w-full py-2 bg-red-950/10 hover:bg-red-950/20 text-red-400/60 hover:text-red-400 border border-red-900/20 hover:border-red-500/30 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                    >
+                        Reset Game Mode
+                    </button>
                 </div>
             </section>
         </div>
