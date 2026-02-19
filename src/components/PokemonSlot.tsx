@@ -17,6 +17,7 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
     const [spriteUrl, setSpriteUrl] = React.useState<string | null>(null);
     const [isLoaded, setIsLoaded] = React.useState(false);
     const [hasError, setHasError] = React.useState(false);
+    const [hasHovered, setHasHovered] = React.useState(false);
 
     // Load sprite from local storage
     React.useEffect(() => {
@@ -38,28 +39,36 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
         setHasError(false);
     }, [spriteUrl]);
 
-    const isVisible = status === 'checked' || status === 'shadow' || status === 'hint';
+    const isChecked = status === 'checked';
+    const isVisible = isChecked || status === 'shadow' || status === 'hint';
     const cleanName = getCleanName(pokemon.name);
+
+    // A slot is "ready to guess" if it's unlocked/shadow and the guessability check passes
+    const isReadyToGuess = !isChecked && canGuess && (status === 'unlocked' || status === 'shadow');
+
+    const getBorderClass = () => {
+        if (isChecked) return 'bg-green-900/40 border-green-700/60';
+        if (isReadyToGuess) return 'bg-emerald-950/80 border-green-500/70 shadow-[0_0_8px_rgba(34,197,94,0.35)]';
+        if (status === 'shadow') return 'bg-blue-950/30 border-blue-800/30 opacity-40';
+        if (status === 'unlocked') return 'bg-gray-900/40 border-gray-700/40 opacity-35 grayscale';
+        if (status === 'hint') return 'bg-indigo-950/40 border-indigo-900/40 opacity-60';
+        return 'bg-gray-800/60 border-gray-700/30'; // locked
+    };
 
     return (
         <div
             onClick={() => setSelectedPokemonId(pokemon.id)}
+            onMouseEnter={() => {
+                if (isReadyToGuess && !hasHovered) setHasHovered(true);
+            }}
             className={`
-        w-11 h-11 rounded-md flex items-center justify-center transition-all duration-300 relative group cursor-pointer hover:scale-110 active:scale-95
-        ${status === 'checked'
-                    ? 'bg-green-900/40 border border-green-700/60'
-                    : status === 'shadow'
-                        ? 'bg-blue-900/30 border border-blue-600/40'
-                        : status === 'unlocked'
-                            ? (canGuess ? 'bg-yellow-900/30 border border-yellow-600/40' : 'bg-gray-900/40 border border-gray-700/60 opacity-50 grayscale cursor-not-allowed')
-                            : status === 'hint'
-                                ? 'bg-indigo-950/40 border border-indigo-900/40 opacity-70'
-                                : 'bg-gray-800/60 border border-gray-700/30'
-                }
-        ${isShiny && status !== 'locked' ? 'shadow-[0_0_10px_rgba(255,215,0,0.3)]' : ''}
-        ${!canGuess && status !== 'locked' && status !== 'checked' ? 'opacity-40' : ''}
-      `}
-            title={!canGuess ? reason : (status === 'checked' ? cleanName : status === 'hint' ? `${cleanName} (Hinted)` : `#${pokemon.id}`)}
+                w-11 h-11 rounded-md flex items-center justify-center transition-all duration-300 relative group cursor-pointer
+                border
+                ${getBorderClass()}
+                ${isReadyToGuess ? 'hover:scale-110 hover:shadow-[0_0_14px_rgba(34,197,94,0.6)] active:scale-95' : 'hover:scale-105 active:scale-95'}
+                ${isShiny && isChecked ? 'shadow-[0_0_10px_rgba(255,215,0,0.4)]' : ''}
+            `}
+            title={!canGuess ? reason : (isChecked ? cleanName : status === 'hint' ? `${cleanName} (Hinted)` : `#${pokemon.id}`)}
         >
             {isVisible && !hasError && spriteUrl && (
                 <div className="absolute inset-0 flex items-center justify-center overflow-visible pointer-events-none">
@@ -87,14 +96,21 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
             )}
 
             {/* Shiny sparkle indicator */}
-            {isShiny && status === 'checked' && (
+            {isShiny && isChecked && (
                 <div className="absolute top-0.5 right-0.5 z-20 animate-pulse">
                     <span className="text-[10px] leading-none drop-shadow-[0_0_2px_rgba(255,215,0,0.8)]">✨</span>
                 </div>
             )}
 
+            {/* Guessable indicator — green dot in corner, hides PERMANENTLY after hover */}
+            {isReadyToGuess && !hasHovered && (
+                <div className="absolute top-0.5 right-0.5 z-20 transition-opacity duration-300">
+                    <span className="block w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.8)]" />
+                </div>
+            )}
+
             {status === 'unlocked' && (
-                <span className="text-yellow-500 text-lg font-bold opacity-75">?</span>
+                <span className="text-yellow-700 text-lg font-bold opacity-40">?</span>
             )}
 
             {status === 'locked' && (
@@ -102,7 +118,7 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
             )}
 
             {/* Tooltip */}
-            {status === 'checked' && (
+            {isChecked && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-xs text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none border border-gray-700 shadow-xl">
                     {cleanName}
                 </div>

@@ -10,7 +10,7 @@ import { TypeStatus } from './components/TypeStatus';
 import { SplashScreen } from './components/SplashScreen';
 
 const GameContent: React.FC = () => {
-  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal, gameMode } = useGame();
+  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal, gameMode, isPokemonGuessable } = useGame();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const [sidebarTab, setSidebarTab] = React.useState<'log' | 'settings'>('log');
   const [isDebugVisible, setIsDebugVisible] = React.useState(false);
@@ -78,7 +78,7 @@ const GameContent: React.FC = () => {
             </div>
 
             <span className="text-xs text-gray-500">
-              Unlocked: <span className="text-yellow-400 font-bold">{unlockedIds.size}</span>
+              Guessable: <span className="text-orange-400 font-bold">{allPokemon.filter(p => !checkedIds.has(p.id) && isPokemonGuessable(p.id).canGuess).length}</span>
               {' · '}
               Checked: <span className="text-green-400 font-bold">{checkedIds.size}</span>
               {' / '}

@@ -36,8 +36,11 @@ interface GameState {
     uiSettings: UISettings;
     shadowsEnabled: boolean;
     shinyIds: Set<number>;
-    logicMode: number;
+    regionLockEnabled: boolean;
+    dexsanityEnabled: boolean;
     typeLocksEnabled: boolean;
+    typeLockMode: number;
+    legendaryGating: number;
     regionPasses: Set<string>;
     typeUnlocks: Set<string>;
     masterBalls: number;
@@ -86,6 +89,7 @@ interface GameContextType extends GameState {
         missingRegion?: string;
         missingTypes?: string[];
         missingPokemon?: boolean;
+        legendaryGatingCount?: number;
     };
     useMasterBall: (pokemonId: number) => void;
     usePokegear: (pokemonId: number) => void;
@@ -116,8 +120,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [goal, setGoal] = useState<GameState['goal'] | undefined>();
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [selectedPokemonId, setSelectedPokemonId] = useState<number | null>(null);
-    const [logicMode, setLogicMode] = useState(0);
+    const [regionLockEnabled, setRegionLockEnabled] = useState(false);
+    const [dexsanityEnabled, setDexsanityEnabled] = useState(true);
     const [typeLocksEnabled, setTypeLocksEnabled] = useState(false);
+    const [typeLockMode, setTypeLockMode] = useState(0); // 0=any, 1=all
+    const [legendaryGating, setLegendaryGating] = useState(0);
     const [regionPasses, setRegionPasses] = useState<Set<string>>(new Set());
     const [typeUnlocks, setTypeUnlocks] = useState<Set<string>>(new Set());
     const [masterBalls, setMasterBalls] = useState(0);
@@ -351,9 +358,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // Shadows setting
                 setShadowsEnabled(!!slotData.shadows);
 
-                // New Logic settings
-                setLogicMode(slotData.logic_mode || 0);
+                // Logic settings — map directly from backend fill_slot_data fields
+                setRegionLockEnabled(!!slotData.enable_region_lock);
+                setDexsanityEnabled(slotData.enable_dexsanity !== undefined ? !!slotData.enable_dexsanity : true);
                 setTypeLocksEnabled(!!slotData.type_locks);
+                setTypeLockMode(slotData.type_lock_mode ?? 0); // 0=any, 1=all
+                setLegendaryGating(slotData.legendary_gating ?? 0);
 
                 // Goal setting
                 if (slotData.goal !== undefined && slotData.goal_amount !== undefined) {
@@ -537,21 +547,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!data) return { canGuess: true };
 
         // --- STANDALONE PROGRESSION ---
-        // Standalone mode is "free play" restricted only by generation settings
         if (gameMode === 'standalone') {
             const genIdx = GENERATIONS.findIndex(g => id >= g.startId && id <= g.endId);
             if (genIdx === -1 || !generationFilter.includes(genIdx)) {
-                return {
-                    canGuess: false,
-                    reason: "Generation not enabled in settings"
-                };
+                return { canGuess: false, reason: 'Generation not enabled in settings' };
             }
             return { canGuess: true };
         }
 
         // --- ARCHIPELAGO PROGRESSION ---
-        // 1. Region Check
-        if (logicMode === 1) { // Region Lock
+        // All checks are INDEPENDENT — a Pokemon may fail multiple simultaneously.
+        // We return the first failing check so the UI shows the most important blocker.
+
+        // 1. Legendary Gating: must collect N non-legendary Pokemon first
+        if (legendaryGating > 0 && data.is_legendary) {
+            const collected = unlockedIds.size;
+            if (collected < legendaryGating) {
+                return {
+                    canGuess: false,
+                    reason: `Legendary locked — collect ${legendaryGating - collected} more Pokémon first`,
+                    legendaryGatingCount: legendaryGating - collected
+                };
+            }
+        }
+
+        // 2. Region Lock: must have the region pass for this Pokemon's generation
+        if (regionLockEnabled) {
             const region = GENERATIONS.find(g => id >= g.startId && id <= g.endId)?.region;
             if (region && !regionPasses.has(region)) {
                 return {
@@ -560,32 +581,39 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     missingRegion: region
                 };
             }
-        } else {
-            // In Dexsanity mode (0), if not in unlockedIds, can't guess
-            if (!unlockedIds.has(id)) {
-                return {
-                    canGuess: false,
-                    reason: "Requires Pokémon item",
-                    missingPokemon: true
-                };
-            }
         }
 
-        // 2. Type Check
+        // 3. Dexsanity: must have received the specific Pokemon item
+        if (dexsanityEnabled && !unlockedIds.has(id)) {
+            return {
+                canGuess: false,
+                reason: 'Requires Pokémon item',
+                missingPokemon: true
+            };
+        }
+
+        // 4. Type Lock: must have the required type unlock(s)
         if (typeLocksEnabled) {
-            const missingTypes = data.types.filter((t: string) => !typeUnlocks.has(t.charAt(0).toUpperCase() + t.slice(1)));
-            if (missingTypes.length > 0) {
-                const formattedTypes = missingTypes.map((t: string) => t.charAt(0).toUpperCase() + t.slice(1));
+            const pokemonTypes: string[] = data.types.map((t: string) => t.charAt(0).toUpperCase() + t.slice(1));
+            const unlockedTypes = pokemonTypes.filter(t => typeUnlocks.has(t));
+            const missingTypes = pokemonTypes.filter(t => !typeUnlocks.has(t));
+
+            const blocked = typeLockMode === 1
+                ? missingTypes.length > 0          // ALL mode: every type must be unlocked
+                : unlockedTypes.length === 0;       // ANY mode: at least one type must be unlocked
+
+            if (blocked) {
+                const toShow = typeLockMode === 1 ? missingTypes : pokemonTypes;
                 return {
                     canGuess: false,
-                    reason: `Requires ${formattedTypes.join(' & ')} Unlock`,
-                    missingTypes: formattedTypes
+                    reason: `Requires ${toShow.join(typeLockMode === 1 ? ' & ' : ' or ')} Unlock`,
+                    missingTypes: toShow
                 };
             }
         }
 
         return { canGuess: true };
-    }, [gameMode, generationFilter, logicMode, regionPasses, typeLocksEnabled, typeUnlocks, unlockedIds]);
+    }, [gameMode, generationFilter, regionLockEnabled, dexsanityEnabled, regionPasses, typeLocksEnabled, typeLockMode, typeUnlocks, unlockedIds, legendaryGating]);
 
     return (
         <GameContext.Provider value={{
@@ -615,8 +643,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             selectedPokemonId,
             setSelectedPokemonId,
             getLocationName,
-            logicMode,
+            regionLockEnabled,
+            dexsanityEnabled,
             typeLocksEnabled,
+            typeLockMode,
+            legendaryGating,
             regionPasses,
             typeUnlocks,
             masterBalls,
