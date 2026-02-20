@@ -54,11 +54,14 @@ To generate a multiworld with Poképelago, you need the `.apworld` file and play
 
 1. Download `pokepelago.apworld` from the latest release (or build it from source).
 2. Place it in your Archipelago installation's `lib/worlds` folder.
-3. Customize a `pokepelago.yaml` file for your players.
+3. Collect the `pokepelago.yaml` files created by your players and place them in your `Players` folder.
+
+### Creating a YAML File (For Players)
+Players should create their own YAML file to configure their settings for the game and send it to the host. 
+You can base your ruleset off the [Standard Poképelago YAML](https://github.com/dowlle/Pokepelago/blob/main/pokepelago.yaml).
 
 ### Archipelago Options (YAML)
 - **Generations (gen1-gen9)**: Enable or disable specific Pokémon generations.
-- **Shadows**: `on` (Silhouettes) or `off` (Hidden completely until hinted).
 - **Goal**: Win by guessing a specific number of Pokémon, a percentage of the Dex, completing a region, or catching all Legendaries.
 - **Logic Locks**: Enable Region Locks, Dexsanity, Type Locks, and Legendary Gating for complex routing. Please be aware that type locks and region locks are untested and may not work as intended. Please do not use them in a real game.
 
@@ -86,7 +89,3 @@ The `.apworld` file is a zipped version of the `apworld/pokepelago` directory. F
 python -c "import os, zipfile; zipfile.ZipFile('pokepelago.apworld', 'w', zipfile.ZIP_DEFLATED).write('apworld/pokepelago', 'apworld/pokepelago')"
 ```
 *(Or use whatever internal script you prefer to ZIP the directory without `.pyc` files).*
-
-## Documentation
-- [Network Protocol](ap_docs_network_protocol.md)
-- [AP World API](ap_docs_world_api.md)
