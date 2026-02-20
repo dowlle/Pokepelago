@@ -56,6 +56,11 @@ export const importFromFiles = async (files: FileList | File[], onProgress?: (co
         // e.g. "sprites-master/sprites/pokemon/1.png"
         const path = ((file as any).webkitRelativePath || name).replace(/\\/g, '/');
 
+        // Ignore back sprites
+        if (path.includes('/back/')) {
+            continue;
+        }
+
         let key = '';
 
         // Optimization for PokeAPI repo structure (huge 1.4GB folder)
