@@ -12,7 +12,14 @@ import { SplashScreen } from './components/SplashScreen';
 const GameContent: React.FC = () => {
   const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal, gameMode, isPokemonGuessable } = useGame();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
-  const [sidebarTab, setSidebarTab] = React.useState<'log' | 'settings'>('log');
+  const [sidebarTab, setSidebarTab] = React.useState<'log' | 'settings'>(() => {
+    const defaultTab = localStorage.getItem('pokepelago_defaultTab') as 'log' | 'settings';
+    if (defaultTab) {
+      localStorage.removeItem('pokepelago_defaultTab');
+      return defaultTab;
+    }
+    return 'log';
+  });
   const [isDebugVisible, setIsDebugVisible] = React.useState(false);
 
   const guessedPokemonCount = React.useMemo(() =>

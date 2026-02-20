@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGame } from '../context/GameContext';
-import { Shield, Share2, Globe, Laptop, ArrowRight, Download, Terminal } from 'lucide-react';
+import { Shield, Globe, Laptop, ArrowRight, Download, Github } from 'lucide-react';
 
 export const SplashScreen: React.FC = () => {
     const { setGameMode } = useGame();
@@ -33,12 +33,12 @@ export const SplashScreen: React.FC = () => {
                         <div className="space-y-4">
                             <div className="flex gap-4 items-start">
                                 <div className="p-2 bg-gray-800 rounded-lg text-blue-400 shrink-0">
-                                    <Terminal size={18} />
+                                    <Github size={18} />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-gray-200">Local Download Tool</h3>
+                                    <h3 className="text-sm font-bold text-gray-200">1. Obtain Sprites (Optional)</h3>
                                     <p className="text-xs text-gray-500 leading-relaxed">
-                                        Use our included Python script to download sprites from public APIs directly to your machine.
+                                        Check the <a href="https://github.com/dowlle/Pokepelago#1-download-the-sprites" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">Poképelago README</a> for instructions on where to find compatible community sprite packs or how to use your own.
                                     </p>
                                 </div>
                             </div>
@@ -47,9 +47,9 @@ export const SplashScreen: React.FC = () => {
                                     <Download size={18} />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-gray-200">Local Import</h3>
+                                    <h3 className="text-sm font-bold text-gray-200">2. Local Import</h3>
                                     <p className="text-xs text-gray-500 leading-relaxed">
-                                        Import your downloaded sprites into your browser's local storage for a seamless experience.
+                                        Import the extracted folder through the settings panel to securely store sprites in your browser.
                                     </p>
                                 </div>
                             </div>
@@ -59,7 +59,10 @@ export const SplashScreen: React.FC = () => {
                     {/* Mode Selection */}
                     <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-right-4 duration-700 delay-300">
                         <button
-                            onClick={() => setGameMode('archipelago')}
+                            onClick={() => {
+                                localStorage.setItem('pokepelago_defaultTab', 'settings');
+                                setGameMode('archipelago');
+                            }}
                             className="group relative flex-1 text-left p-8 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/30 hover:border-blue-500/50 rounded-3xl transition-all duration-300 active:scale-[0.98]"
                         >
                             <div className="flex justify-between items-start mb-4">
@@ -94,10 +97,10 @@ export const SplashScreen: React.FC = () => {
 
                 {/* Footer Info */}
                 <div className="flex flex-wrap justify-center gap-8 text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 animate-in fade-in duration-1000 delay-500">
-                    <div className="flex items-center gap-2">
-                        <Share2 size={12} />
-                        <span>Open Source Project</span>
-                    </div>
+                    <a href="https://github.com/dowlle/Pokepelago" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-white transition-colors">
+                        <Github size={12} />
+                        <span>Poképelago GitHub Repo</span>
+                    </a>
                     <div className="flex items-center gap-2">
                         <Shield size={12} />
                         <span>Client-Side Storage Only</span>

@@ -47,34 +47,56 @@ export const generateSpriteKey = (id: number, options: { shiny?: boolean; animat
 export const importFromFiles = async (files: FileList | File[], onProgress?: (count: number) => void) => {
     // Expected file names: 1.png, 1_shiny.png, 1.gif, 1_shiny.gif, etc.
     // Or folders: static/1.png, shiny/1.png, animated/1.gif, animated/shiny_1.gif
+    // Or full PokeAPI raw repo structure paths.
 
     let importedCount = 0;
 
     for (const file of Array.from(files)) {
         const name = file.name;
-        const path = (file as any).webkitRelativePath || name;
+        // e.g. "sprites-master/sprites/pokemon/1.png"
+        const path = ((file as any).webkitRelativePath || name).replace(/\\/g, '/');
 
         let key = '';
 
-        // Match patterns from download_sprites.py
-        if (path.includes('static/')) {
+        // Optimization for PokeAPI repo structure (huge 1.4GB folder)
+        // Extract straight from the known PokeAPI paths
+        const pokeApiStatic = path.match(/\/(?:sprites\/)?pokemon\/(\d+)\.png$/i);
+        const pokeApiShiny = path.match(/\/(?:sprites\/)?pokemon\/shiny\/(\d+)\.png$/i);
+        const pokeApiAnimated = path.match(/\/(?:sprites\/)?pokemon\/other\/showdown\/(\d+)\.gif$/i);
+        const pokeApiAnimatedShiny = path.match(/\/(?:sprites\/)?pokemon\/other\/showdown\/shiny\/(\d+)\.gif$/i);
+
+        if (pokeApiAnimatedShiny) {
+            const id = parseInt(pokeApiAnimatedShiny[1]);
+            if (id < 10000) key = generateSpriteKey(id, { shiny: true, animated: true });
+        } else if (pokeApiAnimated) {
+            const id = parseInt(pokeApiAnimated[1]);
+            if (id < 10000) key = generateSpriteKey(id, { animated: true });
+        } else if (pokeApiShiny) {
+            const id = parseInt(pokeApiShiny[1]);
+            if (id < 10000) key = generateSpriteKey(id, { shiny: true });
+        } else if (pokeApiStatic) {
+            const id = parseInt(pokeApiStatic[1]);
+            if (id < 10000) key = generateSpriteKey(id, {});
+        }
+        // Backward compatibility for old script structures
+        else if (path.includes('static/')) {
             const id = parsePokemonIdFromFileName(name);
-            if (id !== null) key = generateSpriteKey(id, {});
+            if (id !== null && id < 10000) key = generateSpriteKey(id, {});
         } else if (path.includes('shiny/')) {
             const id = parsePokemonIdFromFileName(name);
-            if (id !== null) key = generateSpriteKey(id, { shiny: true });
+            if (id !== null && id < 10000) key = generateSpriteKey(id, { shiny: true });
         } else if (path.includes('animated/')) {
             if (name.startsWith('shiny_')) {
                 const id = parsePokemonIdFromFileName(name.replace('shiny_', ''));
-                if (id !== null) key = generateSpriteKey(id, { shiny: true, animated: true });
+                if (id !== null && id < 10000) key = generateSpriteKey(id, { shiny: true, animated: true });
             } else {
                 const id = parsePokemonIdFromFileName(name);
-                if (id !== null) key = generateSpriteKey(id, { animated: true });
+                if (id !== null && id < 10000) key = generateSpriteKey(id, { animated: true });
             }
-        } else {
-            // Flat file import
+        } else if (!path.includes('/')) {
+            // Flat file import (only standard files, no directories)
             const id = parsePokemonIdFromFileName(name);
-            if (id !== null) {
+            if (id !== null && id < 10000) {
                 const lowerName = name.toLowerCase();
                 const isShiny = lowerName.includes('shiny');
                 const isAnimated = lowerName.endsWith('.gif') || lowerName.includes('animated');
@@ -85,7 +107,7 @@ export const importFromFiles = async (files: FileList | File[], onProgress?: (co
         if (key) {
             await saveSprite(key, file);
             importedCount++;
-            if (onProgress && importedCount % 10 === 0) {
+            if (onProgress && importedCount % 100 === 0) {
                 onProgress(importedCount);
             }
         }
