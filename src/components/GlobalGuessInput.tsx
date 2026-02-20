@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useGame } from '../context/GameContext';
 import { getCleanName } from '../utils/pokemon';
+import pokemonNames from '../data/pokemon_names.json';
 
 export const GlobalGuessInput: React.FC = () => {
     const { allPokemon, unlockedIds, checkedIds, checkPokemon, gameMode, isPokemonGuessable } = useGame();
@@ -37,10 +38,23 @@ export const GlobalGuessInput: React.FC = () => {
             const raw = p.name.toLowerCase();
             const strip = (s: string) => s.replace(/[^a-z0-9]/g, '');
 
-            const isMatch = raw === normalised ||
+            let isMatch = raw === normalised ||
                 clean === normalised ||
                 strip(raw) === strip(normalised) ||
                 strip(clean) === strip(normalised);
+
+            if (!isMatch) {
+                // Check localized names
+                const localizedNames: string[] = (pokemonNames as Record<string, string[]>)[p.id.toString()] || [];
+                for (const locName of localizedNames) {
+                    const cleanLoc = getCleanName(locName).toLowerCase();
+                    const rawLoc = locName.toLowerCase();
+                    if (rawLoc === normalised || cleanLoc === normalised || strip(rawLoc) === strip(normalised) || strip(cleanLoc) === strip(normalised)) {
+                        isMatch = true;
+                        break;
+                    }
+                }
+            }
 
             if (!isMatch) return false;
             if (checkedIds.has(p.id)) return false;
@@ -69,10 +83,25 @@ export const GlobalGuessInput: React.FC = () => {
             const raw = p.name.toLowerCase();
             const strip = (s: string) => s.replace(/[^a-z0-9]/g, '');
 
-            return raw === normalised ||
+            let isMatch = raw === normalised ||
                 clean === normalised ||
                 strip(raw) === strip(normalised) ||
                 strip(clean) === strip(normalised);
+
+            if (!isMatch) {
+                // Check localized names
+                const localizedNames: string[] = (pokemonNames as Record<string, string[]>)[p.id.toString()] || [];
+                for (const locName of localizedNames) {
+                    const cleanLoc = getCleanName(locName).toLowerCase();
+                    const rawLoc = locName.toLowerCase();
+                    if (rawLoc === normalised || cleanLoc === normalised || strip(rawLoc) === strip(normalised) || strip(cleanLoc) === strip(normalised)) {
+                        isMatch = true;
+                        break;
+                    }
+                }
+            }
+
+            return isMatch;
         });
 
         if (!match) {
@@ -162,7 +191,14 @@ export const GlobalGuessInput: React.FC = () => {
                         {allPokemon
                             .filter(p => {
                                 const clean = getCleanName(p.name).toLowerCase();
-                                return clean.includes(guess.toLowerCase()) && !checkedIds.has(p.id);
+                                let isMatch = clean.includes(guess.toLowerCase());
+
+                                if (!isMatch) {
+                                    const localizedNames: string[] = (pokemonNames as Record<string, string[]>)[p.id.toString()] || [];
+                                    isMatch = localizedNames.some(loc => loc.toLowerCase().includes(guess.toLowerCase()));
+                                }
+
+                                return isMatch && !checkedIds.has(p.id);
                             })
                             .slice(0, 10)
                             .map(p => (
