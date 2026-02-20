@@ -15,6 +15,10 @@ const GameContent: React.FC = () => {
   const [sidebarTab, setSidebarTab] = React.useState<'log' | 'settings'>('log');
   const [isDebugVisible, setIsDebugVisible] = React.useState(false);
 
+  const guessedPokemonCount = React.useMemo(() =>
+    Array.from(checkedIds).filter(id => id <= 1025).length,
+    [checkedIds]);
+
   // Expose debug toggle to window for GlobalGuessInput to call
   React.useEffect(() => {
     (window as any).toggleDebug = () => setIsDebugVisible(prev => {
@@ -80,7 +84,7 @@ const GameContent: React.FC = () => {
             <span className="text-xs text-gray-500">
               Guessable: <span className="text-orange-400 font-bold">{allPokemon.filter(p => !checkedIds.has(p.id) && isPokemonGuessable(p.id).canGuess).length}</span>
               {' · '}
-              Checked: <span className="text-green-400 font-bold">{checkedIds.size}</span>
+              Checked: <span className="text-green-400 font-bold">{guessedPokemonCount}</span>
               {' / '}
               {allPokemon.length}
             </span>
@@ -88,7 +92,10 @@ const GameContent: React.FC = () => {
             {goal && (
               <span className="text-xs text-gray-500 bg-blue-900/20 px-2 py-1 rounded border border-blue-800/30">
                 Goal: <span className="text-blue-400 font-bold">
-                  {goal.type === 'any_pokemon' ? `${checkedIds.size}/${goal.amount}` : `${Math.round((checkedIds.size / allPokemon.length) * 100)}% / ${goal.amount}%`}
+                  {goal.type === 'any_pokemon' ? `Catch ${goal.amount} Pokémon (${guessedPokemonCount}/${goal.amount})` :
+                    goal.type === 'region_completion' ? `Catch all ${goal.region} Pokémon` :
+                      goal.type === 'percentage' ? `Find ${goal.amount}% of Pokémon (${Math.round((guessedPokemonCount / allPokemon.length) * 100)}%)` :
+                        goal.type === 'all_legendaries' ? `Catch All Legendaries` : 'Unknown'}
                 </span>
               </span>
             )}

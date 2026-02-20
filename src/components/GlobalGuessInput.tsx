@@ -137,7 +137,9 @@ export const GlobalGuessInput: React.FC = () => {
 
                 {/* Stats */}
                 <div className="flex items-center gap-4 text-sm whitespace-nowrap">
-                    <span className="text-green-400 font-bold">{checkedIds.size}</span>
+                    <span className="text-green-400 font-bold">
+                        {Array.from(checkedIds).filter(id => id <= 1025).length}
+                    </span>
                     <span className="text-gray-500">/</span>
                     <span className="text-gray-300">{allPokemon.length}</span>
                 </div>

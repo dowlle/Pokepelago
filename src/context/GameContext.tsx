@@ -130,9 +130,29 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [masterBalls, setMasterBalls] = useState(0);
     const [pokegears, setPokegears] = useState(0);
     const [pokedexes, setPokedexes] = useState(0);
-    const [usedMasterBalls, setUsedMasterBalls] = useState<Set<number>>(new Set());
-    const [usedPokegears, setUsedPokegears] = useState<Set<number>>(new Set());
-    const [usedPokedexes, setUsedPokedexes] = useState<Set<number>>(new Set());
+    const [usedMasterBalls, setUsedMasterBalls] = useState<Set<number>>(() => {
+        const saved = localStorage.getItem('pokepelago_usedMasterBalls');
+        return saved ? new Set(JSON.parse(saved)) : new Set();
+    });
+    const [usedPokegears, setUsedPokegears] = useState<Set<number>>(() => {
+        const saved = localStorage.getItem('pokepelago_usedPokegears');
+        return saved ? new Set(JSON.parse(saved)) : new Set();
+    });
+    const [usedPokedexes, setUsedPokedexes] = useState<Set<number>>(() => {
+        const saved = localStorage.getItem('pokepelago_usedPokedexes');
+        return saved ? new Set(JSON.parse(saved)) : new Set();
+    });
+
+    // Save Used Items
+    useEffect(() => {
+        localStorage.setItem('pokepelago_usedMasterBalls', JSON.stringify(Array.from(usedMasterBalls)));
+    }, [usedMasterBalls]);
+    useEffect(() => {
+        localStorage.setItem('pokepelago_usedPokegears', JSON.stringify(Array.from(usedPokegears)));
+    }, [usedPokegears]);
+    useEffect(() => {
+        localStorage.setItem('pokepelago_usedPokedexes', JSON.stringify(Array.from(usedPokedexes)));
+    }, [usedPokedexes]);
     const [spriteCount, setSpriteCount] = useState(0);
     const [gameMode, setGameModeState] = useState<'archipelago' | 'standalone' | null>(() => {
         const params = new URLSearchParams(window.location.search);
@@ -270,6 +290,124 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [isConnected]);
 
+    // --- Extended Locations (Catch X Type/Region) Checking ---
+    useEffect(() => {
+        if (!clientRef.current || !isConnected || gameMode === 'standalone') return;
+
+        const checkExtendedLocations = () => {
+            const typeCounts: Record<string, number> = {};
+            const regionCounts: Record<string, number> = {};
+
+            // Count everything we've actively guessed so far
+            Array.from(checkedIds).forEach(id => {
+                if (id > 1025) return; // Only count base Pokemon locations
+
+                const data = (pokemonMetadata as any)[id];
+                if (!data) return;
+
+                // Types
+                data.types.forEach((t: string) => {
+                    const cType = t.charAt(0).toUpperCase() + t.slice(1);
+                    typeCounts[cType] = (typeCounts[cType] || 0) + 1;
+                });
+
+                // Region
+                const region = GENERATIONS.find(g => id >= g.startId && id <= g.endId)?.region;
+                if (region) {
+                    regionCounts[region] = (regionCounts[region] || 0) + 1;
+                }
+            });
+
+            // Map thresholds to Location IDs (from apworld/pokepelago/locations.py)
+            // Type Sanity: 201026 to 201079
+            const typesList = ['Normal', 'Fire', 'Water', 'Grass', 'Electric', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic', 'Bug', 'Rock', 'Ghost', 'Dragon', 'Steel', 'Dark', 'Fairy'];
+            const typeThresholds = [1, 5, 10];
+
+            let baseTypeId = 201026;
+            typesList.forEach(t => {
+                const count = typeCounts[t] || 0;
+                typeThresholds.forEach(thresh => {
+                    if (count >= thresh) {
+                        const localId = baseTypeId - LOCATION_OFFSET;
+                        if (!checkedIds.has(localId)) {
+                            // Only check if not already checked!
+                            clientRef.current?.check(baseTypeId);
+                            // Optimistically add it to prevent spamming
+                            setCheckedIds(prev => new Set(prev).add(localId));
+                        }
+                    }
+                    baseTypeId++;
+                });
+            });
+
+            // Region Sanity: 201080 to 201124
+            const regionsList = ['Kanto', 'Johto', 'Hoenn', 'Sinnoh', 'Unova', 'Kalos', 'Alola', 'Galar', 'Paldea'];
+            const regionThresholds = [1, 5, 10, 25, 50];
+
+            let baseRegionId = 201080;
+            regionsList.forEach(r => {
+                const count = regionCounts[r] || 0;
+                regionThresholds.forEach(thresh => {
+                    if (count >= thresh) {
+                        const localId = baseRegionId - LOCATION_OFFSET;
+                        if (!checkedIds.has(localId)) {
+                            clientRef.current?.check(baseRegionId);
+                            setCheckedIds(prev => new Set(prev).add(localId));
+                        }
+                    }
+                    baseRegionId++;
+                });
+            });
+        };
+
+        checkExtendedLocations();
+    }, [checkedIds, isConnected, gameMode, pokemonMetadata]);
+
+    // --- Goal Checking ---
+    useEffect(() => {
+        if (!clientRef.current || !isConnected || gameMode !== 'archipelago' || !goal) return;
+
+        let won = false;
+        const guessedPokemonCount = Array.from(checkedIds).filter(id => id <= 1025).length;
+
+        if (goal.type === 'any_pokemon' || goal.type === 'percentage') {
+            won = guessedPokemonCount >= goal.amount;
+        } else if (goal.type === 'region_completion' && goal.region) {
+            // Count how many we have from this region
+            let countInRegion = 0;
+            let totalInRegion = 0;
+
+            // Go through all pokemon to find total needed
+            allPokemon.forEach(p => {
+                const region = GENERATIONS.find(g => p.id >= g.startId && p.id <= g.endId)?.region;
+                if (region === goal.region) {
+                    totalInRegion++;
+                    if (checkedIds.has(p.id)) countInRegion++;
+                }
+            });
+
+            won = totalInRegion > 0 && countInRegion >= totalInRegion;
+        } else if (goal.type === 'all_legendaries') {
+            let countLegs = 0;
+            let totalLegs = 0;
+
+            allPokemon.forEach(p => {
+                const data = (pokemonMetadata as any)[p.id];
+                if (data?.is_legendary) {
+                    totalLegs++;
+                    if (checkedIds.has(p.id)) countLegs++;
+                }
+            });
+
+            won = totalLegs > 0 && countLegs >= totalLegs;
+        }
+
+        if (won) {
+            console.log("Goal met! Sending CLIENT_GOAL status.");
+            clientRef.current.updateStatus(30); // 30 is ClientStatus.CLIENT_GOAL
+        }
+    }, [checkedIds, isConnected, gameMode, goal, allPokemon]);
+
     const addLog = useCallback((entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
         setLogs(prev => [
             {
@@ -380,6 +518,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Handle items via ItemsManager
             client.items.on('itemsReceived', (items: Item[]) => {
+                let recalculateItems = false;
                 items.forEach((item) => {
                     if (item.id >= ITEM_OFFSET && item.id < ITEM_OFFSET + 2000) {
                         const dexId = item.id - ITEM_OFFSET;
@@ -407,14 +546,35 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         const types = ['Normal', 'Fire', 'Water', 'Grass', 'Electric', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic', 'Bug', 'Rock', 'Ghost', 'Dragon', 'Steel', 'Dark', 'Fairy'];
                         const typeName = types[item.id - 106101];
                         setTypeUnlocks(prev => new Set(prev).add(typeName));
-                    } else if (item.id === 106201) {
-                        setMasterBalls(prev => prev + 1);
-                    } else if (item.id === 106202) {
-                        setPokegears(prev => prev + 1);
-                    } else if (item.id === 106203) {
-                        setPokedexes(prev => prev + 1);
+                        setLogs(prev => [{
+                            id: crypto.randomUUID(),
+                            timestamp: Date.now(),
+                            type: 'system',
+                            text: `Received Type Unlock: ${typeName}`,
+                            parts: [{ text: `Received Type Unlock: ${typeName}`, type: 'color', color: 'text-green-400' }]
+                        }, ...prev]);
+                    } else if (item.id === 106201 || item.id === 106202 || item.id === 106203) {
+                        recalculateItems = true;
                     }
                 });
+
+                if (recalculateItems) {
+                    setUsedMasterBalls(used => {
+                        const totalServer = client.items.received.filter(i => i.id === 106201).length;
+                        setMasterBalls(Math.max(0, totalServer - used.size));
+                        return used;
+                    });
+                    setUsedPokegears(used => {
+                        const totalServer = client.items.received.filter(i => i.id === 106202).length;
+                        setPokegears(Math.max(0, totalServer - used.size));
+                        return used;
+                    });
+                    setUsedPokedexes(used => {
+                        const totalServer = client.items.received.filter(i => i.id === 106203).length;
+                        setPokedexes(Math.max(0, totalServer - used.size));
+                        return used;
+                    });
+                }
             });
 
             // Generic log capturing

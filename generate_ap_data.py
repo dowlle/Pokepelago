@@ -63,7 +63,9 @@ def generate_ap_data():
         f.write("class PokemonLocation(Location):\n    game: str = \"pokepelago\"\n\n")
         f.write("location_table = {\n")
         for p_id in sorted(pokemon_data.keys()):
-            clean_name = f"Check #{p_id}"
+            # Format name nicely: replace dashes with spaces and title case
+            formatted_name = pokemon_data[p_id]['name'].replace('-', ' ').title()
+            clean_name = f"Catch {formatted_name}"
             ap_id = 200000 + p_id
             f.write(f"    '{clean_name}': {ap_id},\n")
         f.write("}\n")

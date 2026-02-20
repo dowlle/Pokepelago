@@ -576,7 +576,13 @@ class PokepelagoWorld(World):
         type_lock_mode = self.options.type_lock_mode.value # 0=Any, 1=All
         leg_gating = self.options.legendary_gating.value
 
-        for loc in self.multiworld.get_region("Menu", self.player).locations:
+        menu = self.multiworld.get_region("Menu", self.player)
+        
+        # Track underlying Pokemon locations to evaluate Extended Locations accurately
+        pokemon_locations_by_group = {g: [] for g in self.item_name_groups}
+
+        # First pass: Base Pokemon Locations
+        for loc in menu.locations:
             if loc.address <= 201025:
                 dex_id = loc.address - 200000
                 p_data = pokemon_data.get(str(dex_id))
@@ -597,7 +603,14 @@ class PokepelagoWorld(World):
                 if enable_region_lock:
                     region_name = self._get_region_name(dex_id)
                     predicates.append(lambda state, r=region_name: state.has(f"{r} Pass", self.player))
-                    
+                
+                # Dexsanity Rule
+                # We MUST enforce this rule to prevent deadlocks where the generator places 
+                # progression items in locations that require a Pokemon item the player doesn't have.
+                # The availability of Extended Locations and starting inventory should prevent fill failures.
+                if enable_dexsanity:
+                     predicates.append(lambda state, i=dex_id: state.has(f"Pokemon #{i}", self.player))
+                     
                 # Type Lock Rule
                 if use_type_locks and p_data:
                     types = p_data['types']
@@ -617,23 +630,43 @@ class PokepelagoWorld(World):
                     loc.access_rule = lambda state, ps=predicates: all(p(state) for p in ps)
                 else:
                     loc.access_rule = lambda state: True
-            
-            else:
-                # Extended Locations ("Catch X Type/Region Pokemon") — NO ACCESS RULES.
-                # These locations represent in-game milestones tracked by the game client.
-                # If we gate them on state.count_group("Pokemon") >= N, AP's fill will
-                # deadlock: all Pokemon items land in these extended locations, but the
-                # locations require receiving Pokemon items to access — a circular dependency.
-                # The game client already enforces the catch counts; AP just needs to know
-                # the location always exists and is always reachable.
-                loc.access_rule = lambda state: True
+
+                # Register location for Extended Locations evaluation
+                name_item = f"Pokemon #{dex_id}"
+                for g, items in self.item_name_groups.items():
+                    if name_item in items:
+                        if g not in pokemon_locations_by_group:
+                            pokemon_locations_by_group[g] = []
+                        pokemon_locations_by_group[g].append(loc)
+
+        # Second pass: Extended Locations
+        for loc in menu.locations:
+            if loc.address > 201025:
+                # Extended Locations ("Catch X Type/Region Pokemon")
+                # We evaluate if the player can ACTUALLY reach (guess) X Pokemon of this group.
+                # This perfectly mirrors the game client logic and prevents AP deadlocks/false Tracker flags.
+                try:
+                    parts = loc.name.split()
+                    count = int(parts[1])
+                    if "Type" in loc.name:
+                        t_name = parts[2]
+                        group_name = f"{t_name} Type Pokemon"
+                    else:
+                        r_name = parts[2]
+                        group_name = f"{r_name} Pokemon"
+                        
+                    related_locs = pokemon_locations_by_group.get(group_name, [])
+                    loc.access_rule = lambda state, locs=related_locs, c=count: sum(1 for l in locs if l.access_rule(state)) >= c
+                except Exception:
+                    # Fallback if name parsing fails
+                    loc.access_rule = lambda state: True
 
         # Victory condition
         goal_type = self.options.goal.value
         goal_amount = self.options.goal_amount.value
         
         # Calculate max possible pokemon based on available locations
-        total_enabled = len(self.multiworld.get_region("Menu", self.player).locations)
+        total_enabled = sum(1 for loc in self.multiworld.get_region("Menu", self.player).locations if loc.address <= 201025)
 
         if goal_type == 0:  # Any Pokemon
             target = min(goal_amount, total_enabled)
