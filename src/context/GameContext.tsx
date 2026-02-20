@@ -429,227 +429,244 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setConnectionError(null);
         setIsConnected(false);
 
-        try {
-            const client = new Client();
-            clientRef.current = client;
+        const protocolsToTry = info.hostname.includes('://') ? [''] : ['wss://', 'ws://'];
+        let lastError: any = null;
 
-            const protocol = info.hostname.includes('://') ? '' : 'ws://';
-            const url = `${protocol}${info.hostname}:${info.port}`;
+        for (const protocol of protocolsToTry) {
+            try {
+                const client = new Client();
+                clientRef.current = client;
 
-            // Socket Event Handlers
-            client.socket.on('connectionRefused', (packet: ConnectionRefusedPacket) => {
-                setConnectionError(`Connection refused: ${packet.errors?.join(', ') || 'Unknown error'}`);
-                setIsConnected(false);
-            });
+                const url = `${protocol}${info.hostname}:${info.port}`;
 
-            client.socket.on('connected', (packet: ConnectedPacket) => {
-                console.log('Connected to Archipelago!', packet);
-                setIsConnected(true);
-                setConnectionError(null);
-
-                // Sync already checked locations
-                const checkedLocs = packet.checked_locations || [];
-                const newChecked = new Set<number>();
-                checkedLocs.forEach((locId: number) => {
-                    if (locId >= LOCATION_OFFSET && locId < LOCATION_OFFSET + 2000) {
-                        newChecked.add(locId - LOCATION_OFFSET);
-                    }
+                // Socket Event Handlers
+                client.socket.on('connectionRefused', (packet: ConnectionRefusedPacket) => {
+                    setConnectionError(`Connection refused: ${packet.errors?.join(', ') || 'Unknown error'}`);
+                    setIsConnected(false);
                 });
-                setCheckedIds(newChecked);
 
-                // Sync already received items (fully reconstruct unlockedIds)
-                const receivedItems = client.items.received;
-                const newUnlocked = new Set<number>();
-                receivedItems.forEach((item) => {
-                    if (item.id >= ITEM_OFFSET && item.id < ITEM_OFFSET + 2000) {
-                        newUnlocked.add(item.id - ITEM_OFFSET);
-                    }
-                });
-                setUnlockedIds(newUnlocked);
+                client.socket.on('connected', (packet: ConnectedPacket) => {
+                    console.log(`Connected to Archipelago via ${protocol || '(explicit protocol)'}!`, packet);
+                    setIsConnected(true);
+                    setConnectionError(null);
 
-                // Reconstruct shinyIds from received items count
-                const shinyCount = receivedItems.filter(i => i.id === 105000).length;
-                if (shinyCount > 0) {
-                    const receivedPokemonIds = Array.from(newUnlocked);
-                    setShinyIds(new Set(receivedPokemonIds.slice(0, shinyCount)));
-                }
-
-                // Handle slot data for settings
-                const slotData = packet.slot_data as any || {};
-
-                // Gen filters
-                const newFilter: number[] = [];
-                if (slotData.gen1) newFilter.push(0);
-                if (slotData.gen2) newFilter.push(1);
-                if (slotData.gen3) newFilter.push(2);
-                if (slotData.gen4) newFilter.push(3);
-                if (slotData.gen5) newFilter.push(4);
-                if (slotData.gen6) newFilter.push(5);
-                if (slotData.gen7) newFilter.push(6);
-                if (slotData.gen8) newFilter.push(7);
-                if (slotData.gen9) newFilter.push(8);
-
-                if (newFilter.length > 0) {
-                    setGenerationFilter(newFilter);
-                }
-
-                // Shadows setting
-                setShadowsEnabled(!!slotData.shadows);
-
-                // Logic settings — map directly from backend fill_slot_data fields
-                setRegionLockEnabled(!!slotData.enable_region_lock);
-                setDexsanityEnabled(slotData.enable_dexsanity !== undefined ? !!slotData.enable_dexsanity : true);
-                setTypeLocksEnabled(!!slotData.type_locks);
-                setTypeLockMode(slotData.type_lock_mode ?? 0); // 0=any, 1=all
-                setLegendaryGating(slotData.legendary_gating ?? 0);
-
-                // Goal setting
-                if (slotData.goal !== undefined && slotData.goal_amount !== undefined) {
-                    const goalTypes: ('any_pokemon' | 'percentage' | 'region_completion' | 'all_legendaries')[] =
-                        ['any_pokemon', 'percentage', 'region_completion', 'all_legendaries'];
-                    const regions = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"];
-                    setGoal({
-                        type: goalTypes[slotData.goal] || 'any_pokemon',
-                        amount: slotData.goal_amount,
-                        region: slotData.goal_region ? regions[slotData.goal_region - 1] : undefined
+                    // Sync already checked locations
+                    const checkedLocs = packet.checked_locations || [];
+                    const newChecked = new Set<number>();
+                    checkedLocs.forEach((locId: number) => {
+                        if (locId >= LOCATION_OFFSET && locId < LOCATION_OFFSET + 2000) {
+                            newChecked.add(locId - LOCATION_OFFSET);
+                        }
                     });
-                }
-            });
+                    setCheckedIds(newChecked);
 
-            // Handle items via ItemsManager
-            client.items.on('itemsReceived', (items: Item[]) => {
-                let recalculateItems = false;
-                items.forEach((item) => {
-                    if (item.id >= ITEM_OFFSET && item.id < ITEM_OFFSET + 2000) {
-                        const dexId = item.id - ITEM_OFFSET;
-                        unlockPokemon(dexId);
-                    } else if (item.id === 105000) {
-                        // Shiny Upgrade
-                        setUnlockedIds(unlocked => {
-                            const pokemonIds = Array.from(unlocked);
-                            setShinyIds(prev => {
+                    // Sync already received items (fully reconstruct unlockedIds)
+                    const receivedItems = client.items.received;
+                    const newUnlocked = new Set<number>();
+                    receivedItems.forEach((item) => {
+                        if (item.id >= ITEM_OFFSET && item.id < ITEM_OFFSET + 2000) {
+                            newUnlocked.add(item.id - ITEM_OFFSET);
+                        }
+                    });
+                    setUnlockedIds(newUnlocked);
+
+                    // Reconstruct shinyIds from received items count
+                    const shinyCount = receivedItems.filter(i => i.id === 105000).length;
+                    if (shinyCount > 0) {
+                        const receivedPokemonIds = Array.from(newUnlocked);
+                        setShinyIds(new Set(receivedPokemonIds.slice(0, shinyCount)));
+                    }
+
+                    // Handle slot data for settings
+                    const slotData = packet.slot_data as any || {};
+
+                    // Gen filters
+                    const newFilter: number[] = [];
+                    if (slotData.gen1) newFilter.push(0);
+                    if (slotData.gen2) newFilter.push(1);
+                    if (slotData.gen3) newFilter.push(2);
+                    if (slotData.gen4) newFilter.push(3);
+                    if (slotData.gen5) newFilter.push(4);
+                    if (slotData.gen6) newFilter.push(5);
+                    if (slotData.gen7) newFilter.push(6);
+                    if (slotData.gen8) newFilter.push(7);
+                    if (slotData.gen9) newFilter.push(8);
+
+                    if (newFilter.length > 0) {
+                        setGenerationFilter(newFilter);
+                    }
+
+                    // Shadows setting
+                    setShadowsEnabled(!!slotData.shadows);
+
+                    // Logic settings
+                    setRegionLockEnabled(!!slotData.enable_region_lock);
+                    setDexsanityEnabled(slotData.enable_dexsanity !== undefined ? !!slotData.enable_dexsanity : true);
+                    setTypeLocksEnabled(!!slotData.type_locks);
+                    setTypeLockMode(slotData.type_lock_mode ?? 0);
+                    setLegendaryGating(slotData.legendary_gating ?? 0);
+
+                    // Goal setting
+                    if (slotData.goal !== undefined && slotData.goal_amount !== undefined) {
+                        const goalTypes: ('any_pokemon' | 'percentage' | 'region_completion' | 'all_legendaries')[] =
+                            ['any_pokemon', 'percentage', 'region_completion', 'all_legendaries'];
+                        const regions = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"];
+                        setGoal({
+                            type: goalTypes[slotData.goal] || 'any_pokemon',
+                            amount: slotData.goal_amount,
+                            region: slotData.goal_region ? regions[slotData.goal_region - 1] : undefined
+                        });
+                    }
+                });
+
+                // Handle items via ItemsManager
+                client.items.on('itemsReceived', (items: Item[]) => {
+                    let recalculateItems = false;
+                    items.forEach((item) => {
+                        if (item.id >= ITEM_OFFSET && item.id < ITEM_OFFSET + 2000) {
+                            const dexId = item.id - ITEM_OFFSET;
+                            unlockPokemon(dexId);
+                        } else if (item.id === 105000) {
+                            // Shiny Upgrade
+                            setUnlockedIds(unlocked => {
+                                const pokemonIds = Array.from(unlocked);
+                                setShinyIds(prev => {
+                                    const next = new Set(prev);
+                                    // Apply to the next unlocked pokemon that isn't shiny yet
+                                    const targetIdx = prev.size;
+                                    if (targetIdx < pokemonIds.length) {
+                                        next.add(pokemonIds[targetIdx]);
+                                    }
+                                    return next;
+                                });
+                                return unlocked;
+                            });
+                        } else if (item.id >= 106001 && item.id <= 106009) {
+                            const regions = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"];
+                            const regionName = regions[item.id - 106001];
+                            setRegionPasses(prev => new Set(prev).add(regionName));
+                        } else if (item.id >= 106101 && item.id <= 106118) {
+                            const types = ['Normal', 'Fire', 'Water', 'Grass', 'Electric', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic', 'Bug', 'Rock', 'Ghost', 'Dragon', 'Steel', 'Dark', 'Fairy'];
+                            const typeName = types[item.id - 106101];
+                            setTypeUnlocks(prev => new Set(prev).add(typeName));
+                            setLogs(prev => [{
+                                id: crypto.randomUUID(),
+                                timestamp: Date.now(),
+                                type: 'system',
+                                text: `Received Type Unlock: ${typeName}`,
+                                parts: [{ text: `Received Type Unlock: ${typeName}`, type: 'color', color: 'text-green-400' }]
+                            }, ...prev]);
+                        } else if (item.id === 106201 || item.id === 106202 || item.id === 106203) {
+                            recalculateItems = true;
+                        }
+                    });
+
+                    if (recalculateItems) {
+                        setUsedMasterBalls(used => {
+                            const totalServer = client.items.received.filter(i => i.id === 106201).length;
+                            setMasterBalls(Math.max(0, totalServer - used.size));
+                            return used;
+                        });
+                        setUsedPokegears(used => {
+                            const totalServer = client.items.received.filter(i => i.id === 106202).length;
+                            setPokegears(Math.max(0, totalServer - used.size));
+                            return used;
+                        });
+                        setUsedPokedexes(used => {
+                            const totalServer = client.items.received.filter(i => i.id === 106203).length;
+                            setPokedexes(Math.max(0, totalServer - used.size));
+                            return used;
+                        });
+                    }
+                });
+
+                // Generic log capturing
+                client.socket.on('printJSON', (packet) => {
+                    if (packet.type === 'Hint') {
+                        const item = packet.item as any;
+                        if (item && item.receiving_player === client.players.self.slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
+                            const dexId = (item.item as number) - ITEM_OFFSET;
+                            setHintedIds(prev => {
                                 const next = new Set(prev);
-                                // Apply to the next unlocked pokemon that isn't shiny yet
-                                const targetIdx = prev.size;
-                                if (targetIdx < pokemonIds.length) {
-                                    next.add(pokemonIds[targetIdx]);
-                                }
+                                next.add(dexId);
                                 return next;
                             });
-                            return unlocked;
-                        });
-                    } else if (item.id >= 106001 && item.id <= 106009) {
-                        const regions = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"];
-                        const regionName = regions[item.id - 106001];
-                        setRegionPasses(prev => new Set(prev).add(regionName));
-                    } else if (item.id >= 106101 && item.id <= 106118) {
-                        const types = ['Normal', 'Fire', 'Water', 'Grass', 'Electric', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic', 'Bug', 'Rock', 'Ghost', 'Dragon', 'Steel', 'Dark', 'Fairy'];
-                        const typeName = types[item.id - 106101];
-                        setTypeUnlocks(prev => new Set(prev).add(typeName));
-                        setLogs(prev => [{
-                            id: crypto.randomUUID(),
-                            timestamp: Date.now(),
-                            type: 'system',
-                            text: `Received Type Unlock: ${typeName}`,
-                            parts: [{ text: `Received Type Unlock: ${typeName}`, type: 'color', color: 'text-green-400' }]
-                        }, ...prev]);
-                    } else if (item.id === 106201 || item.id === 106202 || item.id === 106203) {
-                        recalculateItems = true;
-                    }
-                });
-
-                if (recalculateItems) {
-                    setUsedMasterBalls(used => {
-                        const totalServer = client.items.received.filter(i => i.id === 106201).length;
-                        setMasterBalls(Math.max(0, totalServer - used.size));
-                        return used;
-                    });
-                    setUsedPokegears(used => {
-                        const totalServer = client.items.received.filter(i => i.id === 106202).length;
-                        setPokegears(Math.max(0, totalServer - used.size));
-                        return used;
-                    });
-                    setUsedPokedexes(used => {
-                        const totalServer = client.items.received.filter(i => i.id === 106203).length;
-                        setPokedexes(Math.max(0, totalServer - used.size));
-                        return used;
-                    });
-                }
-            });
-
-            // Generic log capturing
-            client.socket.on('printJSON', (packet) => {
-                if (packet.type === 'Hint') {
-                    const item = packet.item as any;
-                    if (item && item.receiving_player === client.players.self.slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
-                        const dexId = (item.item as number) - ITEM_OFFSET;
-                        setHintedIds(prev => {
-                            const next = new Set(prev);
-                            next.add(dexId);
-                            return next;
-                        });
-                    }
-                }
-
-                if (packet.data) {
-                    const parts: LogPart[] = packet.data.map((p: any) => {
-                        let text = p.text || '';
-                        let type = p.type || 'color';
-
-                        // Resolve IDs if possible using helper maps
-                        if (p.type === 'player_id') {
-                            const pid = parseInt(p.text);
-                            text = client.players.findPlayer(pid)?.alias || `Player ${pid}`;
-                            type = 'player';
-                        } else if (p.type === 'item_id') {
-                            const iid = parseInt(p.text);
-                            const player = client.players.findPlayer(p.player);
-                            text = client.package.lookupItemName(player?.game || client.game, iid) || `Item ${iid}`;
-                            type = 'item';
-                        } else if (p.type === 'location_id') {
-                            const lid = parseInt(p.text);
-                            const player = client.players.findPlayer(p.player);
-                            text = client.package.lookupLocationName(player?.game || client.game, lid) || `Location ${lid}`;
-                            type = 'location';
                         }
+                    }
 
-                        return { text, type, color: p.color };
-                    });
+                    if (packet.data) {
+                        const parts: LogPart[] = packet.data.map((p: any) => {
+                            let text = p.text || '';
+                            let type = p.type || 'color';
 
-                    addLog({
-                        type: packet.type === 'Hint' ? 'hint' : packet.type === 'ItemSend' ? 'item' : packet.type === 'Chat' ? 'chat' : 'system',
-                        text: parts.map(p => p.text).join(''),
-                        parts
-                    });
-                }
-            });
+                            if (p.type === 'player_id') {
+                                const pid = parseInt(p.text);
+                                text = client.players.findPlayer(pid)?.alias || `Player ${pid}`;
+                                type = 'player';
+                            } else if (p.type === 'item_id') {
+                                const iid = parseInt(p.text);
+                                const player = client.players.findPlayer(p.player);
+                                text = client.package.lookupItemName(player?.game || client.game, iid) || `Item ${iid}`;
+                                type = 'item';
+                            } else if (p.type === 'location_id') {
+                                const lid = parseInt(p.text);
+                                const player = client.players.findPlayer(p.player);
+                                text = client.package.lookupLocationName(player?.game || client.game, lid) || `Location ${lid}`;
+                                type = 'location';
+                            }
 
-            // Handle LocationInfo (sometimes hints come this way or are mass-sent)
-            client.socket.on('locationInfo', (packet) => {
-                packet.locations.forEach(item => {
-                    if (item.player === client.players.self.slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
-                        const dexId = (item.item as number) - ITEM_OFFSET;
-                        setHintedIds(prev => {
-                            const next = new Set(prev);
-                            next.add(dexId);
-                            return next;
+                            return { text, type, color: p.color };
+                        });
+
+                        addLog({
+                            type: packet.type === 'Hint' ? 'hint' : packet.type === 'ItemSend' ? 'item' : packet.type === 'Chat' ? 'chat' : 'system',
+                            text: parts.map(p => p.text).join(''),
+                            parts
                         });
                     }
                 });
-            });
 
-            await client.login(url, info.slotName, 'pokepelago', {
-                password: info.password,
-                items: itemsHandlingFlags.all,
-            });
+                // Handle LocationInfo
+                client.socket.on('locationInfo', (packet) => {
+                    packet.locations.forEach(item => {
+                        if (item.player === client.players.self.slot && (item.item as number) >= ITEM_OFFSET && (item.item as number) < ITEM_OFFSET + 2000) {
+                            const dexId = (item.item as number) - ITEM_OFFSET;
+                            setHintedIds(prev => {
+                                const next = new Set(prev);
+                                next.add(dexId);
+                                return next;
+                            });
+                        }
+                    });
+                });
 
-            localStorage.setItem('pokepelago_connected', 'true');
+                await client.login(url, info.slotName, 'pokepelago', {
+                    password: info.password,
+                    items: itemsHandlingFlags.all,
+                });
 
-        } catch (err: any) {
-            console.error('Connection failed', err);
-            setConnectionError(err.message || 'Failed to connect');
-            setIsConnected(false);
+                localStorage.setItem('pokepelago_connected', 'true');
+                return; // Successfully connected! Exit loop.
+
+            } catch (err: any) {
+                console.warn(`Connection to ${protocol}${info.hostname}:${info.port} failed:`, err);
+                lastError = err;
+
+                if (clientRef.current) {
+                    clientRef.current.socket.disconnect();
+                }
+
+                // If error is related to Archipelago denying login specifically (rather than a WebSocket transport failure), don't retry.
+                const msg = err?.message || String(err);
+                if (msg.includes('Invalid Slot') || msg.includes('Invalid Password') || msg.includes('Invalid Game') || msg.includes('Incompatible Version')) {
+                    break;
+                }
+            }
         }
+
+        console.error('All connection attempts failed', lastError);
+        setConnectionError(lastError?.message || 'Failed to connect. The host may be offline or you might have a secure connection issue.');
+        setIsConnected(false);
     };
 
     const disconnect = () => {
