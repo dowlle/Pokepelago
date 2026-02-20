@@ -1,138 +1,31 @@
 name: Player{number}
-description: Default Pokepelago Template
+description: Standard Run
 game: pokepelago
 
 pokepelago:
-  ################
-  # Game Options #
-  ################
+  gen1: true
+  gen2: true
+  gen3: true
+  gen4: false
+  gen5: false
+  gen6: false
+  gen7: false
+  gen8: false
+  gen9: false
+
+  # Please be aware that playing without dexsanity is not tested and may not work as intended. Please do not use it in a real game.
+  enable_dexsanity: true
+
+  # Please be aware that region lock and type locks are untested and may not work as intended. Please do not use them in a real game.
+  enable_region_lock: false
+  type_locks: false
   
-  # Enable specific Generations of Pokemon to be included in the pool.
-  gen1:
-    true: 1
-    false: 0
-  gen2:
-    true: 0
-    false: 1
-  gen3:
-    true: 0
-    false: 1
-  gen4:
-    true: 0
-    false: 1
-  gen5:
-    true: 0
-    false: 1
-  gen6:
-    true: 0
-    false: 1
-  gen7:
-    true: 0
-    false: 1
-  gen8:
-    true: 0
-    false: 1
-  gen9:
-    true: 0
-    false: 1
-
-  shadows:
-    # How to display unlocked but unguessed Pokemon. 
-    # Option 'on' makes them silhouettes. 'off' keeps them hidden until hinted.
-    off: 0
-    on: 1
-
-  #################
-  # Logic Options #
-  #################
-
-  enable_dexsanity:
-    # If enabled, you must find the specific Pokemon item to guess it.
-    true: 1
-    false: 0
-
-  enable_region_lock:
-    # If enabled, you must find the Region Pass to guess Pokemon in that region.
-    true: 0
-    false: 1
-
-  type_locks:
-    # If enabled, you must find the 'Type Unlock' item to guess Pokemon of that type.
-    # This can be combined with other modes.
-    true: 0
-    false: 1
-
-  type_lock_mode:
-    # How Type Locks function for dual-type Pokemon.
-    # 'any': You can guess the Pokemon if you have ANY of its types unlocked.
-    # 'all': You must have ALL of its types unlocked to guess it.
-    any: 1
-    all: 0
-
-  legendary_gating:
-    # The number of standard Pokemon required before Legendary locations become available.
-    # Minimum: 0, Maximum: 100
-    0: 1
-
-  #################
-  # Item Counts   #
-  #################
+  goal: any_pokemon # get to goal_amount pokemon
+  goal_amount: 200 # make sure this value doesn't exceed the number of pokemon in the game
   
-  master_ball_count:
-    # Number of Master Balls in the pool. Master Balls can instantly reveal a Pokemon.
-    5: 1
+  starting_pokemon_count: 5 # number of pokemon to start with
+  master_ball_count: 5 # number of master balls to start with
+  pokegear_count: 5 # number of pokegears to start with
+  pokedex_count: 5 # number of pokedexes to start with
 
-  pokegear_count:
-    # Number of Pokegears in the pool. Pokegears reveal the true colors of a shadow.
-    5: 1
-
-  pokedex_count:
-    # Number of Pokedexes in the pool. Pokedexes reveal hints about the Pokemon name.
-    5: 1
-
-  ######################
-  # Starting Inventory #
-  ######################
-
-  starting_pokemon_count:
-    # The number of Pokemon given to the player at the start.
-    # Minimum: 1, Maximum: 50
-    5: 1
-
-  starting_type_unlocks:
-    # The minimum number of Type Unlocks to start with if Type Locks are enabled.
-    # Minimum: 0, Maximum: 18
-    2: 1
-
-  starting_region_unlocks:
-    # The minimum number of Region Passes to start with if Region Lock is enabled.
-    # Minimum: 0, Maximum: 9
-    0: 1
-
-  #################
-  # Goal Options  #
-  #################
-
-  goal:
-    # The goal of the game.
-    any_pokemon: 1
-    percentage: 0
-    region_completion: 0
-    all_legendaries: 0
-
-  goal_amount:
-    # The amount required for the any/percentage goal.
-    # Minimum: 1, Maximum: 1025
-    50: 1
-
-  goal_region:
-    # The region required for 'region_completion' goal.
-    kanto: 1
-    johto: 0
-    hoenn: 0
-    sinnoh: 0
-    unova: 0
-    kalos: 0
-    alola: 0
-    galar: 0
-    paldea: 0
+# Please report any issues with generation in the future-game-design channel for Pokepelago on the Archipelago discord server.
