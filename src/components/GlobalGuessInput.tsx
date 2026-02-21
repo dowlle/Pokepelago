@@ -38,10 +38,11 @@ export const GlobalGuessInput: React.FC = () => {
             const raw = p.name.toLowerCase();
             const strip = (s: string) => s.replace(/[^a-z0-9]/g, '');
 
+            const strippedNormalised = strip(normalised);
+
             let isMatch = raw === normalised ||
                 clean === normalised ||
-                strip(raw) === strip(normalised) ||
-                strip(clean) === strip(normalised);
+                (strippedNormalised !== '' && (strip(raw) === strippedNormalised || strip(clean) === strippedNormalised));
 
             if (!isMatch) {
                 // Check localized names
@@ -49,7 +50,7 @@ export const GlobalGuessInput: React.FC = () => {
                 for (const locName of localizedNames) {
                     const cleanLoc = getCleanName(locName).toLowerCase();
                     const rawLoc = locName.toLowerCase();
-                    if (rawLoc === normalised || cleanLoc === normalised || strip(rawLoc) === strip(normalised) || strip(cleanLoc) === strip(normalised)) {
+                    if (rawLoc === normalised || cleanLoc === normalised || (strippedNormalised !== '' && (strip(rawLoc) === strippedNormalised || strip(cleanLoc) === strippedNormalised))) {
                         isMatch = true;
                         break;
                     }
@@ -83,10 +84,11 @@ export const GlobalGuessInput: React.FC = () => {
             const raw = p.name.toLowerCase();
             const strip = (s: string) => s.replace(/[^a-z0-9]/g, '');
 
+            const strippedNormalised = strip(normalised);
+
             let isMatch = raw === normalised ||
                 clean === normalised ||
-                strip(raw) === strip(normalised) ||
-                strip(clean) === strip(normalised);
+                (strippedNormalised !== '' && (strip(raw) === strippedNormalised || strip(clean) === strippedNormalised));
 
             if (!isMatch) {
                 // Check localized names
@@ -94,7 +96,7 @@ export const GlobalGuessInput: React.FC = () => {
                 for (const locName of localizedNames) {
                     const cleanLoc = getCleanName(locName).toLowerCase();
                     const rawLoc = locName.toLowerCase();
-                    if (rawLoc === normalised || cleanLoc === normalised || strip(rawLoc) === strip(normalised) || strip(cleanLoc) === strip(normalised)) {
+                    if (rawLoc === normalised || cleanLoc === normalised || (strippedNormalised !== '' && (strip(rawLoc) === strippedNormalised || strip(cleanLoc) === strippedNormalised))) {
                         isMatch = true;
                         break;
                     }
