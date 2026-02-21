@@ -256,6 +256,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
                         )}
                     </div>
 
+                    <label className="flex items-center justify-between p-3 bg-gray-900/50 border border-gray-700/50 rounded-xl hover:bg-gray-800/80 transition-colors cursor-pointer group mb-2">
+                        <div className="flex items-center gap-2">
+                            <Image size={16} className="text-yellow-400 group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="text-xs font-bold text-gray-200">Enable Custom Sprites</div>
+                                <div className="text-[9px] text-gray-500">Show downloaded sprite packs</div>
+                            </div>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={uiSettings.enableSprites}
+                            onChange={(e) => updateUiSettings({ enableSprites: e.target.checked })}
+                            className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-yellow-600 focus:ring-yellow-500"
+                        />
+                    </label>
+
                     <div className="space-y-2">
                         <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-700 rounded-xl hover:bg-gray-800/40 hover:border-gray-600 transition-all cursor-pointer group">
                             <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -317,6 +333,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
                             className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-emerald-600 focus:ring-emerald-500"
                         />
                     </label>
+
+                    {gameMode === 'standalone' && (
+                        <label className="flex items-center justify-between p-3 bg-gray-800/30 border border-gray-700 rounded hover:bg-gray-800/50 transition-colors cursor-pointer group">
+                            <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 rounded-full bg-blue-950 border border-blue-800 opacity-40 group-hover:scale-110 transition-transform" />
+                                <div>
+                                    <div className="text-xs font-bold text-gray-200">Enable Shadows</div>
+                                    <div className="text-[9px] text-gray-500">Show silhouettes for unexplored Pokémon</div>
+                                </div>
+                            </div>
+                            <input
+                                type="checkbox"
+                                checked={uiSettings.enableShadows}
+                                onChange={(e) => updateUiSettings({ enableShadows: e.target.checked })}
+                                className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-blue-600 focus:ring-blue-500"
+                            />
+                        </label>
+                    )}
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-gray-800/50">

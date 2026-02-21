@@ -6,7 +6,7 @@ import { PokemonSlot } from './PokemonSlot';
 import { Lock } from 'lucide-react';
 
 export const DexGrid: React.FC = () => {
-    const { allPokemon, unlockedIds, checkedIds, hintedIds, shinyIds, generationFilter, uiSettings, shadowsEnabled, regionLockEnabled, regionPasses } = useGame();
+    const { allPokemon, unlockedIds, checkedIds, hintedIds, shinyIds, generationFilter, uiSettings, shadowsEnabled, regionLockEnabled, regionPasses, gameMode } = useGame();
 
     // Build a map for quick lookups
     const pokemonById = React.useMemo(() => {
@@ -17,6 +17,10 @@ export const DexGrid: React.FC = () => {
 
     const getStatus = (id: number): 'locked' | 'unlocked' | 'checked' | 'shadow' | 'hint' => {
         if (checkedIds.has(id)) return 'checked';
+
+        if (gameMode === 'standalone') {
+            return uiSettings.enableShadows ? 'shadow' : 'locked';
+        }
 
         // Revealed if individual item found OR region pass found (if in Region Lock mode)
         let isRevealed = unlockedIds.has(id);

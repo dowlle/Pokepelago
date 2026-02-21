@@ -10,7 +10,7 @@ interface PokemonSlotProps {
 }
 
 export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShiny = false }) => {
-    const { setSelectedPokemonId, isPokemonGuessable, usedPokegears, getSpriteUrl } = useGame();
+    const { setSelectedPokemonId, isPokemonGuessable, usedPokegears, getSpriteUrl, uiSettings, gameMode } = useGame();
     const { canGuess, reason } = isPokemonGuessable(pokemon.id);
     const isPokegeared = usedPokegears.has(pokemon.id);
 
@@ -23,6 +23,14 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
     React.useEffect(() => {
         let active = true;
         const loadSprite = async () => {
+            if (!uiSettings.enableSprites) {
+                if (active) {
+                    setSpriteUrl(null);
+                    setHasError(true);
+                }
+                return;
+            }
+
             const url = await getSpriteUrl(pokemon.id, { shiny: isShiny });
             if (active) {
                 setSpriteUrl(url);
@@ -31,7 +39,7 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
         };
         loadSprite();
         return () => { active = false; };
-    }, [pokemon.id, isShiny, getSpriteUrl]);
+    }, [pokemon.id, isShiny, getSpriteUrl, uiSettings.enableSprites]);
 
     // Reset load state when url changes
     React.useEffect(() => {
@@ -43,8 +51,9 @@ export const PokemonSlot: React.FC<PokemonSlotProps> = ({ pokemon, status, isShi
     const isVisible = isChecked || status === 'shadow' || status === 'hint';
     const cleanName = getCleanName(pokemon.name);
 
-    // A slot is "ready to guess" if it's unlocked/shadow and the guessability check passes
-    const isReadyToGuess = !isChecked && canGuess && (status === 'unlocked' || status === 'shadow');
+    // A slot is "ready to guess" if it's unlocked/shadow and the guessability check passes.
+    // In standalone mode, everything is ready to guess, so we don't highlight them all as new.
+    const isReadyToGuess = !isChecked && canGuess && (status === 'unlocked' || status === 'shadow') && gameMode !== 'standalone';
 
     const getBorderClass = () => {
         if (isChecked) return 'bg-green-900/40 border-green-700/60';

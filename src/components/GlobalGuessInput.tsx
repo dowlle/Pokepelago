@@ -19,7 +19,7 @@ export const GlobalGuessInput: React.FC = () => {
 
     // Debug trigger
     useEffect(() => {
-        if (guess.toLowerCase().trim() === 'iamsuper') {
+        if (guess.toLowerCase().trim() === 'myuncleworksatnintendo') {
             if ((window as any).toggleDebug) {
                 (window as any).toggleDebug();
                 setGuess('');

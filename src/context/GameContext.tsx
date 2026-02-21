@@ -58,6 +58,8 @@ interface GameState {
 export interface UISettings {
     widescreen: boolean;
     masonry: boolean;
+    enableSprites: boolean;
+    enableShadows: boolean;
 }
 
 interface ConnectionInfo {
@@ -217,7 +219,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [connectionError, setConnectionError] = useState<string | null>(null);
     const [uiSettings, setUiSettings] = useState<UISettings>(() => {
         const saved = localStorage.getItem('pokepelago_ui');
-        return saved ? JSON.parse(saved) : { widescreen: false, masonry: false };
+        return saved ? JSON.parse(saved) : { widescreen: false, masonry: false, enableSprites: true, enableShadows: false };
     });
 
     const clientRef = useRef<Client | null>(null);
