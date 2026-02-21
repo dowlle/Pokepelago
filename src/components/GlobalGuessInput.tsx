@@ -4,7 +4,7 @@ import { getCleanName } from '../utils/pokemon';
 import pokemonNames from '../data/pokemon_names.json';
 
 export const GlobalGuessInput: React.FC = () => {
-    const { allPokemon, unlockedIds, checkedIds, checkPokemon, gameMode, isPokemonGuessable } = useGame();
+    const { allPokemon, checkedIds, checkPokemon, gameMode, isPokemonGuessable } = useGame();
     const [guess, setGuess] = useState('');
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'already'; name: string } | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -60,12 +60,8 @@ export const GlobalGuessInput: React.FC = () => {
             if (!isMatch) return false;
             if (checkedIds.has(p.id)) return false;
 
-            // In standalone, just check logic (gen filters). In AP, check item unlock.
-            if (gameMode === 'standalone') {
-                return isPokemonGuessable(p.id).canGuess;
-            } else {
-                return unlockedIds.has(p.id);
-            }
+            // Check all unlock conditions (gen filters, region lock, type lock, dexsanity, etc.)
+            return isPokemonGuessable(p.id).canGuess;
         });
 
         if (match) {
@@ -74,7 +70,7 @@ export const GlobalGuessInput: React.FC = () => {
             setFeedback({ type: 'success', name: getCleanName(match.name) });
             setGuess('');
         }
-    }, [guess, allPokemon, unlockedIds, checkedIds, checkPokemon]);
+    }, [guess, allPokemon, checkedIds, checkPokemon, isPokemonGuessable]);
 
     const attemptGuess = (name: string) => {
         const normalised = name.toLowerCase().trim();
@@ -117,15 +113,11 @@ export const GlobalGuessInput: React.FC = () => {
             return;
         }
 
-        if (gameMode !== 'standalone' && !unlockedIds.has(match.id)) {
-            // Correct name, but not yet unlocked (AP only)
-            setFeedback({ type: 'error', name: normalised });
-            return;
-        }
-
-        if (gameMode === 'standalone' && !isPokemonGuessable(match.id).canGuess) {
-            // Correct name, but generation filtered out
-            setFeedback({ type: 'error', name: 'Generation Locked' });
+        const guessCheck = isPokemonGuessable(match.id);
+        if (!guessCheck.canGuess) {
+            // Correct name, but blocked by some lock condition
+            const reason = gameMode === 'standalone' ? 'Generation Locked' : (guessCheck.reason || 'Not found or not unlocked');
+            setFeedback({ type: 'error', name: reason });
             return;
         }
 
@@ -183,7 +175,7 @@ export const GlobalGuessInput: React.FC = () => {
                         }`}>
                         {feedback.type === 'success' && `✓ ${feedback.name}!`}
                         {feedback.type === 'already' && `Already guessed ${feedback.name}`}
-                        {feedback.type === 'error' && `✗ ${feedback.name === guess.toLowerCase().trim() ? (gameMode === 'standalone' ? 'Generation Locked' : 'Not found or not unlocked') : feedback.name}`}
+                        {feedback.type === 'error' && `✗ ${feedback.name}`}
                     </div>
                 )}
 
@@ -215,7 +207,7 @@ export const GlobalGuessInput: React.FC = () => {
                                     <span>{getCleanName(p.name)}</span>
                                     {gameMode === 'standalone' ? (
                                         <span className="text-gray-500 text-[10px] uppercase">Available</span>
-                                    ) : unlockedIds.has(p.id) ? (
+                                    ) : isPokemonGuessable(p.id).canGuess ? (
                                         <span className="text-green-500 text-[10px] uppercase font-bold">Unlocked</span>
                                     ) : (
                                         <span className="text-gray-500 text-[10px] uppercase">Locked</span>
