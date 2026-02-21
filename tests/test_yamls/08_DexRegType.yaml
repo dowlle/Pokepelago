@@ -1,0 +1,27 @@
+name: DexRegType
+description: Test config - DexRegType
+game: pokepelago
+pokepelago:
+  progression_balancing: 50
+  accessibility: full
+  gen1: true
+  gen2: true
+  gen3: true
+  gen4: false
+  gen5: false
+  gen6: false
+  gen7: false
+  gen8: false
+  gen9: false
+  shadows: on
+  enable_dexsanity: true
+  enable_region_lock: true
+  type_locks: true
+  type_lock_mode: any
+  legendary_gating: 50
+  goal: any_pokemon
+  goal_amount: 200
+  goal_region: kanto
+  starting_pokemon_count: 5
+  starting_type_unlocks: 2
+  starting_region_unlocks: 1

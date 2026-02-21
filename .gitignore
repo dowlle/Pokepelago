@@ -23,9 +23,24 @@ dist-ssr
 *.sln
 *.sw?
 
+# Project-specific
 sprites
 scripts
-tests
 
+# Working docs (keep README.md)
+/Trap ideas.md
+/Logic*.md
+/ap_docs*.md
+
+# Python
 *.pyc
-.zip
+__pycache__/
+
+# Build artifacts
+*.apworld
+*.zip
+
+# Generated test output
+tests/gen_*.log
+tests/Generate_*.txt
+tests/output/

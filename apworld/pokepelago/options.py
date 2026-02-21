@@ -86,27 +86,6 @@ class LegendaryGating(Range):
     range_end = 100
     default = 0
 
-class MasterBallCount(Range):
-    """Number of Master Balls in the pool. Master Balls can instantly reveal a Pokemon."""
-    display_name = "Master Ball Count"
-    range_start = 0
-    range_end = 20
-    default = 5
-
-class PokegearCount(Range):
-    """Number of Pokegears in the pool. Pokegears reveal the true colors of a shadow."""
-    display_name = "Pokegear Count"
-    range_start = 0
-    range_end = 20
-    default = 5
-
-class PokedexCount(Range):
-    """Number of Pokedexes in the pool. Pokedexes reveal hints about the Pokemon name."""
-    display_name = "Pokedex Count"
-    range_start = 0
-    range_end = 20
-    default = 5
-
 class Goal(Choice):
     """The goal of the game."""
     display_name = "Goal"
@@ -145,22 +124,74 @@ class StartingPokemonCount(Range):
     default = 5
 
 class StartingTypeUnlockCount(Range):
-    """
-    The minimum number of Type Unlocks to start with if Type Locks are enabled.
-    """
+    """The minimum number of Type Unlocks to start with if Type Locks are enabled."""
     display_name = "Starting Type Unlock Count"
     range_start = 0
     range_end = 18
     default = 2
 
 class StartingRegionUnlockCount(Range):
-    """
-    The minimum number of Region Parses to start with if Region Lock is enabled.
-    """
+    """The minimum number of Region Passes to start with if Region Lock is enabled."""
     display_name = "Starting Region Unlock Count"
     range_start = 0
     range_end = 9
     default = 0
+
+class FillerWeightMasterBall(Range):
+    """Weight for Master Ball in the filler pool. Master Balls instantly reveal a Pokemon."""
+    display_name = "Filler Weight: Master Ball"
+    range_start = 0
+    range_end = 100
+    default = 10
+
+class FillerWeightPokegear(Range):
+    """Weight for Pokegear in the filler pool. Pokegears reveal the true colors of a shadow."""
+    display_name = "Filler Weight: Pokegear"
+    range_start = 0
+    range_end = 100
+    default = 10
+
+class FillerWeightPokedex(Range):
+    """Weight for Pokedex in the filler pool. Pokedexes reveal hints about the Pokemon name."""
+    display_name = "Filler Weight: Pokedex"
+    range_start = 0
+    range_end = 100
+    default = 10
+
+class FillerWeightShinyUpgrade(Range):
+    """Weight for Shiny Upgrade in the filler pool. Makes a random Pokemon shiny."""
+    display_name = "Filler Weight: Shiny Upgrade"
+    range_start = 0
+    range_end = 100
+    default = 5
+
+class FillerWeightShuffleTrap(Range):
+    """Weight for Shuffle Trap. Shuffles all Pokemon in the layout temporarily."""
+    display_name = "Filler Weight: Shuffle Trap"
+    range_start = 0
+    range_end = 100
+    default = 5
+
+class FillerWeightDerpyTrap(Range):
+    """Weight for Derpy Trap. Changes a Pokemon sprite to a derpy version."""
+    display_name = "Filler Weight: Derpy Trap"
+    range_start = 0
+    range_end = 100
+    default = 5
+
+class FillerWeightReleaseTrap(Range):
+    """Weight for Release Trap. One of your Pokemon visually runs away."""
+    display_name = "Filler Weight: Release Trap"
+    range_start = 0
+    range_end = 100
+    default = 5
+
+class FillerWeightNothing(Range):
+    """Weight for empty filler (no effect). Higher = more junk items."""
+    display_name = "Filler Weight: Nothing"
+    range_start = 0
+    range_end = 100
+    default = 50
 
 @dataclass
 class PokepelagoOptions(PerGameCommonOptions):
@@ -179,12 +210,19 @@ class PokepelagoOptions(PerGameCommonOptions):
     type_locks: TypeLocks
     type_lock_mode: TypeLockMode
     legendary_gating: LegendaryGating
-    master_ball_count: MasterBallCount
-    pokegear_count: PokegearCount
-    pokedex_count: PokedexCount
     goal: Goal
     goal_amount: GoalAmount
     goal_region: GoalRegion
     starting_pokemon_count: StartingPokemonCount
     starting_type_unlocks: StartingTypeUnlockCount
     starting_region_unlocks: StartingRegionUnlockCount
+    filler_weight_master_ball: FillerWeightMasterBall
+    filler_weight_pokegear: FillerWeightPokegear
+    filler_weight_pokedex: FillerWeightPokedex
+    filler_weight_shiny_upgrade: FillerWeightShinyUpgrade
+    filler_weight_shuffle_trap: FillerWeightShuffleTrap
+    filler_weight_derpy_trap: FillerWeightDerpyTrap
+    filler_weight_release_trap: FillerWeightReleaseTrap
+    filler_weight_nothing: FillerWeightNothing
+
+

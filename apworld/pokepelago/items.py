@@ -4,6 +4,9 @@ class PokemonItem(Item):
     game: str = "pokepelago"
 
 item_table = {
+    'Shuffle Trap': 105997,
+    'Derpy Trap': 105998,
+    'Release Trap': 105999,
     'Pokemon #1': 100001,
     'Pokemon #2': 100002,
     'Pokemon #3': 100003,
