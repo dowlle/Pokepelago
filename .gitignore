@@ -24,13 +24,11 @@ dist-ssr
 *.sw?
 
 # Project-specific
-sprites
 scripts
+docs
 
 # Working docs (keep README.md)
 /Trap ideas.md
-/Logic*.md
-/ap_docs*.md
 
 # Python
 *.pyc

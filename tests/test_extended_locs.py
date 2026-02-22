@@ -31,6 +31,7 @@ if "BaseClasses" not in sys.modules:
             self.address = address
             self.parent_region = parent
             self.access_rule = lambda state: True
+            self.item_rule = lambda item: True
             
     base_classes.Location = MockLocation
     

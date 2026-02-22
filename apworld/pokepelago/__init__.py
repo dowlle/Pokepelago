@@ -270,6 +270,9 @@ class PokepelagoWorld(World):
         # AP's beatability sweep sees 0 reachable locations and aborts generation.
         if self.options.enable_region_lock.value and start_regions_count < 1:
             start_regions_count = 1
+            
+        if self.options.type_locks.value and start_types_count < 1:
+            start_types_count = 1
 
         precollected = []
         
@@ -641,9 +644,40 @@ class PokepelagoWorld(World):
         # accessible locations before the few Passes/Unlocks can cascade.
         for loc in menu.locations:
             if loc.address <= 201025:
-                pass  # No rule — always accessible during generation
+                # Base Location - Apply item_rule to prevent circular dependencies
+                dex_id = loc.address - 200000
+                forbidden_items = set()
+                
+                if enable_region_lock:
+                    forbidden_items.add(f"{self._get_region_name(dex_id)} Pass")
+                
+                if use_type_locks and str(dex_id) in pokemon_data:
+                    for t in pokemon_data[str(dex_id)]['types']:
+                        forbidden_items.add(f"{t.capitalize()} Unlock")
+
+                if forbidden_items:
+                    loc.item_rule = lambda item, forbidden=forbidden_items: item.name not in forbidden
+                
+                pass  # No access_rule — always accessible during generation
             elif loc.address > 201025:
                 # Extended Locations ("Catch X Type/Region Pokemon")
+                
+                # Apply item_rule to prevent circular dependencies on the extended location itself
+                try:
+                    parts = loc.name.split()
+                    if "Type" in loc.name:
+                        t_name = parts[2]
+                        if use_type_locks:
+                            forbidden = f"{t_name} Unlock"
+                            loc.item_rule = lambda item, f=forbidden: item.name != f
+                    else:
+                        r_name = parts[2]
+                        if enable_region_lock:
+                            forbidden = f"{r_name} Pass"
+                            loc.item_rule = lambda item, f=forbidden: item.name != f
+                except Exception:
+                    pass
+
                 if enable_dexsanity:
                     # When Dexsanity is ON, Pokemon items ARE in the pool.
                     # Use AP's fast native has_group to gate extended locations
