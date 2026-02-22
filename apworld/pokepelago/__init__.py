@@ -636,15 +636,9 @@ class PokepelagoWorld(World):
                 except (IndexError, ValueError):
                     pass
 
-        # Apply rules to locations
-        # NOTE: Base locations (loc.address <= 201025) have NO access rules.
-        # The game client enforces Region Lock / Type Lock at runtime.
-        # Adding AP access rules on base locations causes fill_restrictive to
-        # deadlock because ~400 Pokemon items compete for ~30 initially
-        # accessible locations before the few Passes/Unlocks can cascade.
         for loc in menu.locations:
             if loc.address <= 201025:
-                # Base Location - Apply item_rule to prevent circular dependencies
+                # Base Location - Apply item_rule to prevent direct circular dependencies
                 dex_id = loc.address - 200000
                 forbidden_items = set()
                 
@@ -658,7 +652,17 @@ class PokepelagoWorld(World):
                 if forbidden_items:
                     loc.item_rule = lambda item, forbidden=forbidden_items: item.name not in forbidden
                 
-                pass  # No access_rule — always accessible during generation
+                # Apply access_rule — Now enabled because of the Safety Floor guarantee!
+                # This ensures indirect circularities (A -> B -> A) are impossible.
+                base_rule = pokemon_base_reqs.get(dex_id, lambda state: True)
+                
+                # Merge with Legendary Gating if applicable
+                is_leg = pokemon_data[str(dex_id)]['is_legendary'] if str(dex_id) in pokemon_data else False
+                if leg_gating > 0 and is_leg:
+                    loc.access_rule = lambda state, b=base_rule, c=leg_gating: \
+                        b(state) and state.has_group("Pokemon", self.player, c)
+                else:
+                    loc.access_rule = base_rule
             elif loc.address > 201025:
                 # Extended Locations ("Catch X Type/Region Pokemon")
                 
