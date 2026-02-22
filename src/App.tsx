@@ -8,9 +8,18 @@ import { ArchipelagoLog } from './components/ArchipelagoLog';
 import { PokemonDetails } from './components/PokemonDetails';
 import { TypeStatus } from './components/TypeStatus';
 import { SplashScreen } from './components/SplashScreen';
+import { GENERATIONS } from './types/pokemon';
+
+const POKEMON_TYPES = ['Normal', 'Fire', 'Water', 'Grass', 'Electric', 'Ice', 'Fighting', 'Poison', 'Ground', 'Flying', 'Psychic', 'Bug', 'Rock', 'Ghost', 'Dragon', 'Steel', 'Dark', 'Fairy'];
 
 const GameContent: React.FC = () => {
-  const { allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected, uiSettings, goal, gameMode, isPokemonGuessable } = useGame();
+  const {
+    allPokemon, unlockedIds, checkedIds, unlockPokemon, isLoading, isConnected,
+    uiSettings, goal, gameMode, isPokemonGuessable,
+    regionPasses, typeUnlocks,
+    unlockRegion, lockRegion, clearAllRegions,
+    unlockType, lockType, clearAllTypes
+  } = useGame();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const [sidebarTab, setSidebarTab] = React.useState<'log' | 'settings'>(() => {
     const defaultTab = localStorage.getItem('pokepelago_defaultTab') as 'log' | 'settings';
@@ -21,6 +30,8 @@ const GameContent: React.FC = () => {
     return 'log';
   });
   const [isDebugVisible, setIsDebugVisible] = React.useState(false);
+  const [debugRegion, setDebugRegion] = React.useState(GENERATIONS[0].region);
+  const [debugType, setDebugType] = React.useState(POKEMON_TYPES[0]);
 
   const guessedPokemonCount = React.useMemo(() =>
     Array.from(checkedIds).filter(id => id <= 1025).length,
@@ -167,13 +178,62 @@ const GameContent: React.FC = () => {
         {/* Debug Controls - inside Main/Sidebar container to be positioned at bottom of viewport */}
         {isDebugVisible && (
           <div className="absolute bottom-0 left-0 right-0 z-20 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 transition-all duration-300" style={{ right: isSidebarOpen ? '320px' : '0' }}>
-            <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 py-2">
-              <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">Debug</span>
-              <div className="flex gap-2">
-                <button onClick={unlockRandom} className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs border border-gray-700">Unlock 1</button>
-                <button onClick={unlockBatch} className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs border border-gray-700">Unlock 10</button>
-                <button onClick={unlockAll} className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 text-red-200 rounded text-xs border border-red-700/50">Unlock ALL</button>
-                <button onClick={() => unlockPokemon(25)} className="px-3 py-1 bg-yellow-900/50 hover:bg-yellow-900/80 text-yellow-200 rounded text-xs border border-yellow-700/50">Unlock Pikachu</button>
+            <div className="max-w-screen-xl mx-auto flex flex-col gap-2 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">Debug Controls</span>
+                <div className="flex gap-2">
+                  <button onClick={unlockRandom} className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs border border-gray-700 whitespace-nowrap">Unlock 1</button>
+                  <button onClick={unlockBatch} className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs border border-gray-700 whitespace-nowrap">Unlock 10</button>
+                  <button onClick={unlockAll} className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 text-red-200 rounded text-xs border border-red-700/50 whitespace-nowrap">Unlock ALL</button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-4 items-center border-t border-gray-800 pt-2">
+                {/* Region Controls */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold">Regions:</span>
+                  <select
+                    value={debugRegion}
+                    onChange={(e) => setDebugRegion(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs outline-none focus:border-blue-500"
+                  >
+                    {GENERATIONS.map(g => (
+                      <option key={g.region} value={g.region}>{g.region}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => regionPasses.has(debugRegion) ? lockRegion(debugRegion) : unlockRegion(debugRegion)}
+                    className={`px-3 py-1 rounded text-xs border transition-colors ${regionPasses.has(debugRegion) ? 'bg-green-900/30 text-green-400 border-green-700/50 hover:bg-green-900/50' : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700'}`}
+                  >
+                    {regionPasses.has(debugRegion) ? 'Unlocked' : 'Locked'}
+                  </button>
+                  <div className="h-4 w-px bg-gray-800 mx-1"></div>
+                  <button onClick={() => GENERATIONS.forEach(g => unlockRegion(g.region))} className="text-[10px] text-blue-400 hover:underline">All</button>
+                  <button onClick={clearAllRegions} className="text-[10px] text-red-400 hover:underline">Clear</button>
+                </div>
+
+                {/* Type Controls */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-400 uppercase font-bold">Types:</span>
+                  <select
+                    value={debugType}
+                    onChange={(e) => setDebugType(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs outline-none focus:border-blue-500"
+                  >
+                    {POKEMON_TYPES.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => typeUnlocks.has(debugType) ? lockType(debugType) : unlockType(debugType)}
+                    className={`px-3 py-1 rounded text-xs border transition-colors ${typeUnlocks.has(debugType) ? 'bg-green-900/30 text-green-400 border-green-700/50 hover:bg-green-900/50' : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700'}`}
+                  >
+                    {typeUnlocks.has(debugType) ? 'Unlocked' : 'Locked'}
+                  </button>
+                  <div className="h-4 w-px bg-gray-800 mx-1"></div>
+                  <button onClick={() => POKEMON_TYPES.forEach(t => unlockType(t))} className="text-[10px] text-blue-400 hover:underline">All</button>
+                  <button onClick={clearAllTypes} className="text-[10px] text-red-400 hover:underline">Clear</button>
+                </div>
               </div>
             </div>
           </div>

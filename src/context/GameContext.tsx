@@ -104,6 +104,12 @@ interface GameContextType extends GameState {
     setGameMode: (mode: 'archipelago' | 'standalone' | null) => void;
     refreshSpriteCount: () => Promise<void>;
     getSpriteUrl: (id: number, options?: { shiny?: boolean; animated?: boolean }) => Promise<string | null>;
+    unlockRegion: (region: string) => void;
+    lockRegion: (region: string) => void;
+    clearAllRegions: () => void;
+    unlockType: (type: string) => void;
+    lockType: (type: string) => void;
+    clearAllTypes: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -721,6 +727,38 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [pokedexes, addLog]);
 
+    const unlockRegion = useCallback((region: string) => {
+        setRegionPasses(prev => new Set(prev).add(region));
+    }, []);
+
+    const lockRegion = useCallback((region: string) => {
+        setRegionPasses(prev => {
+            const next = new Set(prev);
+            next.delete(region);
+            return next;
+        });
+    }, []);
+
+    const clearAllRegions = useCallback(() => {
+        setRegionPasses(new Set());
+    }, []);
+
+    const unlockType = useCallback((typeName: string) => {
+        setTypeUnlocks(prev => new Set(prev).add(typeName));
+    }, []);
+
+    const lockType = useCallback((typeName: string) => {
+        setTypeUnlocks(prev => {
+            const next = new Set(prev);
+            next.delete(typeName);
+            return next;
+        });
+    }, []);
+
+    const clearAllTypes = useCallback(() => {
+        setTypeUnlocks(new Set());
+    }, []);
+
     const isPokemonGuessable = useCallback((id: number) => {
         const data = (pokemonMetadata as any)[id];
         if (!data) return { canGuess: true };
@@ -843,7 +881,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             getSpriteUrl,
             isPokemonGuessable,
             gameMode,
-            setGameMode
+            setGameMode,
+            unlockRegion,
+            lockRegion,
+            clearAllRegions,
+            unlockType,
+            lockType,
+            clearAllTypes
         }}>
             {children}
         </GameContext.Provider>
