@@ -62,7 +62,29 @@ class PokepelagoWorld(World):
         self.dropped_dex_ids = set()
 
     def generate_early(self):
+        # 1. Deadlock Prevention: if both Region and Type locks are active,
+        # the player MUST start with at least 1 region and 1 type unlocked to make any guess.
+        if self.options.enable_region_lock.value and self.options.type_locks.value:
+            if self.options.starting_region_unlocks.value < 1:
+                self.options.starting_region_unlocks.value = 1
+            if self.options.starting_type_unlocks.value < 1:
+                self.options.starting_type_unlocks.value = 1
+
+        # 2. Calculate optimal drops for item pool balancing
         self._calculate_excess_and_drops()
+
+        # 3. Calculate Win Condition Target early so we can refer to it
+        goal_type = self.options.goal.value
+        goal_amount = self.options.goal_amount.value
+        total_possible = sum(1 for dex_id in pokemon_data if self._is_dex_id_enabled(int(dex_id)))
+
+        if goal_type == 0:  # Any Pokemon
+            self.required_catch_goal = min(goal_amount, total_possible)
+        elif goal_type == 1:  # Percentage
+            self.required_catch_goal = max(1, round((goal_amount / 100.0) * total_possible))
+        else: # Region or Legendaries
+            # Handled dynamically in set_rules via specific conditions
+            self.required_catch_goal = -1
 
     def _calculate_excess_and_drops(self):
         # Calculate Logic Balance
@@ -488,10 +510,34 @@ class PokepelagoWorld(World):
                 pool_items.append(self.create_item(name))
         
         self.multiworld.itempool += pool_items
+        
+        # Log counts for automated testing
+        import logging
+        logging.info(f"[Pokepelago] Player {self.player} Locations: {total_locations} | Items in pool: {len(pool_items)} | Precollected: {len(precollected)}")
 
     def create_regions(self):
         menu = Region("Menu", self.player, self.multiworld)
         self.multiworld.regions.append(menu)
+        
+        # 1. Create Generation Regions
+        gen_regions = {}
+        regions_info = [
+            ("Kanto", self.options.gen1), ("Johto", self.options.gen2), ("Hoenn", self.options.gen3),
+            ("Sinnoh", self.options.gen4), ("Unova", self.options.gen5), ("Kalos", self.options.gen6),
+            ("Alola", self.options.gen7), ("Galar", self.options.gen8), ("Paldea", self.options.gen9)
+        ]
+        
+        from BaseClasses import Entrance
+        for gen_name, gen_opt in regions_info:
+            if gen_opt.value:
+                r = Region(gen_name, self.player, self.multiworld)
+                self.multiworld.regions.append(r)
+                gen_regions[gen_name] = r
+                
+                # Connect Menu -> Generation Region
+                entrance = Entrance(self.player, f"To {gen_name}", menu)
+                menu.exits.append(entrance)
+                entrance.connect(r)
 
         for name, loc_id in location_table.items():
             if 200001 <= loc_id <= 201025:
@@ -500,13 +546,23 @@ class PokepelagoWorld(World):
                     # Only add the base location individually if Dexsanity is enabled.
                     # Otherwise, progression is gated only through Extended Locations.
                     if self.options.enable_dexsanity.value:
-                        loc = Location(self.player, name, loc_id, menu)
-                        menu.locations.append(loc)
+                        gen_name = self._get_region_name(dex_id)
+                        parent_region = gen_regions.get(gen_name, menu)
+                        loc = Location(self.player, name, loc_id, parent_region)
+                        parent_region.locations.append(loc)
             elif loc_id > 201025:
                 # Extended Locations (Catch X Type/Region)
                 if self._is_extended_location_enabled(name):
                     loc = Location(self.player, name, loc_id, menu)
                     menu.locations.append(loc)
+
+        # 1. Create the Final Victory Event Location
+        goal_loc = Location(self.player, "Goal Met", None, menu)
+        menu.locations.append(goal_loc)
+        
+        # 2. Add the Victory Event Item to it
+        victory_item = Item("Victory", ItemClassification.progression, None, self.player)
+        goal_loc.place_locked_item(victory_item)
 
     def _count_enabled_extended_locations(self) -> int:
         count_locs = 0
@@ -576,8 +632,17 @@ class PokepelagoWorld(World):
 
         menu = self.multiworld.get_region("Menu", self.player)
         
+        # 1. Rules for Generation Region Entrances
+        if enable_region_lock:
+            for exit in menu.exits:
+                if exit.name.startswith("To "):
+                    region_name = exit.name[3:]
+                    pass_name = f"{region_name} Pass"
+                    exit.access_rule = lambda state, p=pass_name: state.has(p, self.player)
+        
         # Track underlying Pokemon requirements to evaluate Extended Locations accurately
         pokemon_base_reqs = {} # dex_id -> lambda state: bool
+        pokemon_location_reqs = {} # dex_id -> lambda state: bool (Region-less for Base Locations)
         non_leg_reqs = []
         
         for dex_id_str, p_data in pokemon_data.items():
@@ -586,7 +651,7 @@ class PokepelagoWorld(World):
                 continue
                 
             region_pass = f"{self._get_region_name(dex_id)} Pass" if enable_region_lock else None
-            t_unlocks = [f"{t.capitalize()} Unlock" for t in p_data['types']] if use_type_locks else []
+            t_unlocks = tuple([f"{t.capitalize()} Unlock" for t in p_data['types']]) if use_type_locks else tuple()
             is_leg = p_data['is_legendary']
             
             # Create a localized closure for fast execution without overhead
@@ -594,33 +659,59 @@ class PokepelagoWorld(World):
                 def check(state, p=self.player):
                     if rp and not state.has(rp, p): return False
                     if tus:
-                        if mode == 0:
-                            if not any(state.has(t, p) for t in tus): return False
-                        else:
-                            if not all(state.has(t, p) for t in tus): return False
+                        if mode == 0: # Any
+                            if not state.has_any(tus, p): return False
+                        else: # All
+                            if not state.has_all(tus, p): return False
                     return True
                 return check
                 
             pokemon_base_reqs[dex_id] = make_req(region_pass, t_unlocks, type_lock_mode)
             if not is_leg:
                 non_leg_reqs.append(pokemon_base_reqs[dex_id])
+                
+            if t_unlocks:
+                def make_type_req(tus, mode):
+                    def check(state, p=self.player):
+                        if mode == 0: # Any
+                            return state.has_any(tus, p)
+                        else: # All
+                            return state.has_all(tus, p)
+                    return check
+                pokemon_location_reqs[dex_id] = make_type_req(t_unlocks, type_lock_mode)
 
         # Wrap legendary ones to handle legendary gating
         if leg_gating > 0:
             for dex_id_str, p_data in pokemon_data.items():
                 dex_id = int(dex_id_str)
-                if p_data['is_legendary'] and dex_id in pokemon_base_reqs:
-                    old_req = pokemon_base_reqs[dex_id]
-                    def make_leg_req(base_r, nreqs, req_count, dexsanity):
-                        def check(state, p=self.player):
-                            if not base_r(state): return False
-                            if dexsanity:
-                                if state.count_group("Pokemon", p) < req_count: return False
-                            else:
-                                if sum(1 for r in nreqs if r(state)) < req_count: return False
-                            return True
-                        return check
-                    pokemon_base_reqs[dex_id] = make_leg_req(old_req, non_leg_reqs, leg_gating, enable_dexsanity)
+                if p_data['is_legendary']:
+                    if dex_id in pokemon_base_reqs:
+                        old_req = pokemon_base_reqs[dex_id]
+                        def make_leg_req(base_r, nreqs, req_count, dexsanity):
+                            def check(state, p=self.player):
+                                if not base_r(state): return False
+                                if dexsanity:
+                                    if state.count_group("Pokemon", p) < req_count: return False
+                                else:
+                                    if sum(1 for r in nreqs if r(state)) < req_count: return False
+                                return True
+                            return check
+                        pokemon_base_reqs[dex_id] = make_leg_req(old_req, non_leg_reqs, leg_gating, enable_dexsanity)
+                    
+                    if dex_id in pokemon_location_reqs:
+                        old_l_req = pokemon_location_reqs[dex_id]
+                        def make_leg_loc_req(base_r, req_count):
+                            def check(state, p=self.player):
+                                if not base_r(state): return False
+                                return state.count_group("Pokemon", p) >= req_count
+                            return check
+                        pokemon_location_reqs[dex_id] = make_leg_loc_req(old_l_req, leg_gating)
+                    else:
+                        def make_leg_only_req(req_count):
+                            def check(state, p=self.player):
+                                return state.count_group("Pokemon", p) >= req_count
+                            return check
+                        pokemon_location_reqs[dex_id] = make_leg_only_req(leg_gating)
 
         # Precompile Group requirements (Only used for Dexsanity OFF)
         pokemon_group_ext_reqs = {g: [] for g in self.item_name_groups}
@@ -634,41 +725,41 @@ class PokepelagoWorld(World):
                     pass
 
         # Apply rules to locations
-        # NOTE: Base locations (loc.address <= 201025) have NO access rules.
-        # The game client enforces Region Lock / Type Lock at runtime.
-        # Adding AP access rules on base locations causes fill_restrictive to
-        # deadlock because ~400 Pokemon items compete for ~30 initially
-        # accessible locations before the few Passes/Unlocks can cascade.
-        for loc in menu.locations:
-            if loc.address <= 201025:
-                pass  # No rule — always accessible during generation
-            elif loc.address > 201025:
-                # Extended Locations ("Catch X Type/Region Pokemon")
-                if enable_dexsanity:
-                    # When Dexsanity is ON, Pokemon items ARE in the pool.
-                    # Use AP's fast native has_group to gate extended locations
-                    # based on how many Pokemon items the player has collected.
-                    try:
-                        parts = loc.name.split()
-                        count = int(parts[1])
-                        if "Type" in loc.name:
-                            group_name = f"{parts[2]} Type Pokemon"
-                        else:
-                            group_name = f"{parts[2]} Pokemon"
-                        loc.access_rule = lambda state, g=group_name, c=count: state.has_group(g, self.player, c)
-                    except Exception:
-                        loc.access_rule = lambda state: True
-                # When Dexsanity is OFF, there are no Pokemon items in the pool,
-                # so has_group would always return 0. Extended locations are the
-                # ONLY locations in this mode and get filler/useful items.
-                # No access rule needed — leave them freely accessible.
+        # Base locations are mapped directly to their Generation region, so the Region Pass is implicit.
+        # Therefore, they only natively check their Type Unlocks (via pokemon_location_reqs).
+        for region in self.multiworld.get_regions(self.player):
+            for loc in region.locations:
+                if loc.address is None:
+                    pass # Event locations handle their own rules
+                elif loc.address <= 201025:
+                    dex_id = loc.address - 200000
+                    if dex_id in pokemon_location_reqs:
+                        loc.access_rule = pokemon_location_reqs[dex_id]
+                elif loc.address > 201025:
+                    # Extended Locations ("Catch X Type/Region Pokemon")
+                    if enable_dexsanity:
+                        # When Dexsanity is ON, Pokemon items ARE in the pool.
+                        # Use AP's fast native has_group to gate extended locations
+                        # based on how many Pokemon items the player has collected.
+                        try:
+                            parts = loc.name.split()
+                            count = int(parts[1])
+                            if "Type" in loc.name:
+                                group_name = f"{parts[2]} Type Pokemon"
+                            else:
+                                group_name = f"{parts[2]} Pokemon"
+                            loc.access_rule = lambda state, g=group_name, c=count: state.has_group(g, self.player, c)
+                        except Exception:
+                            loc.access_rule = lambda state: True
+                    # When Dexsanity is OFF, there are no Pokemon items in the pool,
+                    # so has_group would always return 0. Extended locations are the
+                    # ONLY locations in this mode and get filler/useful items.
+                    # No access rule needed — leave them freely accessible.
 
-        # Victory condition
-        goal_type = self.options.goal.value
-        goal_amount = self.options.goal_amount.value
+        # Set the access rule for the 'Goal Met' event location
+        goal_loc = self.multiworld.get_location("Goal Met", self.player)
         
-        # Calculate max possible pokemon based on available locations
-        total_possible = sum(1 for dex_id in pokemon_data if self._is_dex_id_enabled(int(dex_id)))
+        goal_type = self.options.goal.value
 
         def count_all_pokemon(state):
             if enable_dexsanity:
@@ -676,14 +767,9 @@ class PokepelagoWorld(World):
             else:
                 return sum(1 for d in pokemon_base_reqs if pokemon_base_reqs[d](state))
 
-        if goal_type == 0:  # Any Pokemon
-            target = min(goal_amount, total_possible)
-            self.multiworld.completion_condition[self.player] = \
-                lambda state, t=target: count_all_pokemon(state) >= t
-        elif goal_type == 1:  # Percentage
-            target = max(1, round((goal_amount / 100.0) * total_possible))
-            self.multiworld.completion_condition[self.player] = \
-                lambda state, t=target: count_all_pokemon(state) >= t
+        if goal_type == 0 or goal_type == 1:  # Any Pokemon or Percentage
+            goal_loc.access_rule = lambda state: count_all_pokemon(state) >= self.required_catch_goal
+
         elif goal_type == 2: # Region Completion
             region_id = self.options.goal_region.value
             region_name = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"][region_id - 1]
@@ -696,21 +782,21 @@ class PokepelagoWorld(World):
                     region_reqs.append(pokemon_base_reqs[int(d_id)])
             
             if enable_dexsanity:
-                self.multiworld.completion_condition[self.player] = \
-                    lambda state, pjs=region_pokemon: all(state.has(p, self.player) for p in pjs)
+                goal_loc.access_rule = lambda state, pjs=region_pokemon: all(state.has(p, self.player) for p in pjs)
             else:
-                self.multiworld.completion_condition[self.player] = \
-                    lambda state, reqs=region_reqs: all(r(state) for r in reqs)
+                goal_loc.access_rule = lambda state, reqs=region_reqs: all(r(state) for r in reqs)
+
         elif goal_type == 3: # All Legendaries
             legendaries = [f"Pokemon #{d_id}" for d_id, data in pokemon_data.items() if data['is_legendary'] and self._is_dex_id_enabled(int(d_id))]
             leg_reqs = [pokemon_base_reqs[int(d_id)] for d_id, data in pokemon_data.items() if data['is_legendary'] and self._is_dex_id_enabled(int(d_id))]
             
             if enable_dexsanity:
-                self.multiworld.completion_condition[self.player] = \
-                    lambda state, legs=legendaries: all(state.has(l, self.player) for l in legs)
+                goal_loc.access_rule = lambda state, legs=legendaries: all(state.has(l, self.player) for l in legs)
             else:
-                self.multiworld.completion_condition[self.player] = \
-                    lambda state, reqs=leg_reqs: all(r(state) for r in reqs)
+                goal_loc.access_rule = lambda state, reqs=leg_reqs: all(r(state) for r in reqs)
+
+        # The ultimate randomizer completion condition is simply obtaining the "Victory" item from the "Goal Met" location
+        self.multiworld.completion_condition[self.player] = lambda state: state.has("Victory", self.player)
 
     def fill_slot_data(self):
         return {
