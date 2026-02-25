@@ -226,13 +226,10 @@ class PokepelagoWorld(World):
         elif "Pass" in name or "Unlock" in name:
             classification = ItemClassification.progression_skip_balancing
         elif name.startswith("Pokemon #"):
-            # If Dexsanity is ON and it's a legendary, it skips balancing so it isn't forced early
-            dex_id_str = str(item_id - 100000)
             if self.options.enable_dexsanity.value:
-                if dex_id_str in pokemon_data and pokemon_data[dex_id_str].get('is_legendary', False):
-                    classification = ItemClassification.progression_skip_balancing
-                else:
-                    classification = ItemClassification.progression
+                # Pokemon items MUST skip balancing so they aren't forcibly placed in late "Catch X" spheres,
+                # which causes a circular dependency deadlock.
+                classification = ItemClassification.progression_skip_balancing
             else:
                 # If Dexsanity is OFF, the item itself just acts as a tracker/filler in the player's inventory
                 # AP doesn't need to prioritize placing it because the "Event: Guessed X" locations handle the graph.
@@ -656,14 +653,18 @@ class PokepelagoWorld(World):
 
         # --- Apply rules to locations ---
         for loc in self.multiworld.get_locations(self.player):
-            if loc.address is None and "Event: Guessed " in loc.name:
+            if loc.address is None and loc.name.startswith("Event: Guessed Catch "):
                 # Event Locations for Dexsanity=OFF
-                dex_id_match = loc.name.split("#")[-1]
-                if dex_id_match.isdigit():
-                    dex_id = int(dex_id_match)
-                    if dex_id not in getattr(self, "starter_dex_ids", []):
-                        # Apply rules if it's not a starter
-                        loc.access_rule = pokemon_base_reqs[dex_id]
+                pkmn_name = loc.name.replace("Event: Guessed Catch ", "")
+                # Find dex_id from pokemon_data
+                dex_id = None
+                for d_id_str, pd in pokemon_data.items():
+                    if pd['name'] == pkmn_name:
+                        dex_id = int(d_id_str)
+                        break
+                if dex_id and dex_id not in getattr(self, "starter_dex_ids", []):
+                    # Apply rules if it's not a starter
+                    loc.access_rule = pokemon_base_reqs[dex_id]
             
             elif loc.address is not None and 200001 <= loc.address <= 201025:
                 # Base Physical Locations for Dexsanity=ON
@@ -746,10 +747,14 @@ class PokepelagoWorld(World):
         # These are the locations corresponding to `self.starter_dex_ids`
         starter_location_names = []
         for dex_id in getattr(self, "starter_dex_ids", []):
-            if self.options.enable_dexsanity.value:
-                starter_location_names.append(f"Pokemon #{dex_id}")
-            else:
-                starter_location_names.append(f"Event: Guessed Pokemon #{dex_id}")
+            try:
+                pkmn_name = pokemon_data[str(dex_id)]['name']
+                if self.options.enable_dexsanity.value:
+                    starter_location_names.append(f"Catch {pkmn_name}")
+                else:
+                    starter_location_names.append(f"Event: Guessed Catch {pkmn_name}")
+            except Exception:
+                pass
                 
         open_locations = [
             loc for loc in self.multiworld.get_unfilled_locations(self.player)

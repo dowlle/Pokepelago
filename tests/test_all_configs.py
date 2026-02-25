@@ -147,6 +147,14 @@ def main():
         legendary_gating=50, goal="any_pokemon",
         goal_amount=200, goal_region="kanto"
     )
+
+    results.append(run_config("08_DexRegType", {
+        **base_vars,
+        "dexsanity": "true",
+        "region_lock": "true",
+        "type_locks": "true"
+    }))
+
     combos = [(d, r, t)
               for d in (False, True)
               for r in (False, True)
