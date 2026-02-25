@@ -6,7 +6,7 @@ import { PokemonSlot } from './PokemonSlot';
 import { Lock } from 'lucide-react';
 
 export const DexGrid: React.FC = () => {
-    const { allPokemon, unlockedIds, checkedIds, hintedIds, shinyIds, generationFilter, uiSettings, shadowsEnabled, regionLockEnabled, regionPasses, gameMode } = useGame();
+    const { allPokemon, unlockedIds, checkedIds, hintedIds, shinyIds, generationFilter, uiSettings, regionLockEnabled, regionPasses, gameMode, isPokemonGuessable } = useGame();
 
     // Build a map for quick lookups
     const pokemonById = React.useMemo(() => {
@@ -22,17 +22,12 @@ export const DexGrid: React.FC = () => {
             return uiSettings.enableShadows ? 'shadow' : 'locked';
         }
 
-        // Revealed if individual item found OR region pass found (if in Region Lock mode)
-        let isRevealed = unlockedIds.has(id);
-        if (!isRevealed && regionLockEnabled) {
-            const region = GENERATIONS.find(g => id >= g.startId && id <= g.endId)?.region;
-            if (region && regionPasses.has(region)) {
-                isRevealed = true;
-            }
-        }
+        // Revealed if guessable based on AP rules (Region, Type, Legendary) OR if the individual item was found
+        const { canGuess } = isPokemonGuessable(id);
+        const isRevealed = canGuess || unlockedIds.has(id);
 
         if (isRevealed) {
-            return shadowsEnabled ? 'shadow' : 'unlocked';
+            return uiSettings.enableShadows ? 'shadow' : 'unlocked';
         }
         if (hintedIds.has(id)) return 'hint';
         return 'locked';

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { X, ExternalLink, HelpCircle, MapPin, Sparkles, CheckCircle2, Lock } from 'lucide-react';
 import { getCleanName } from '../utils/pokemon';
+import { GENERATIONS } from '../types/pokemon';
 
 export const PokemonDetails: React.FC = () => {
     const {
@@ -23,7 +24,10 @@ export const PokemonDetails: React.FC = () => {
         usedPokegears,
         usedPokedexes,
         isPokemonGuessable,
-        getSpriteUrl
+        getSpriteUrl,
+        starterDexIds,
+        regionPasses,
+        regionLockEnabled
     } = useGame();
 
     const [details, setDetails] = useState<any>(null);
@@ -75,7 +79,14 @@ export const PokemonDetails: React.FC = () => {
 
     if (!selectedPokemonId || !pokemon) return null;
 
-    const isUnlocked = unlockedIds.has(selectedPokemonId);
+    let isUnlocked = starterDexIds.has(selectedPokemonId) || unlockedIds.has(selectedPokemonId);
+    if (!isUnlocked && regionLockEnabled) {
+        const region = GENERATIONS.find(g => selectedPokemonId >= g.startId && selectedPokemonId <= g.endId)?.region;
+        if (region && regionPasses.has(region)) {
+            isUnlocked = true;
+        }
+    }
+
     const isChecked = checkedIds.has(selectedPokemonId);
     const isHinted = hintedIds.has(selectedPokemonId);
     const isShiny = shinyIds.has(selectedPokemonId);

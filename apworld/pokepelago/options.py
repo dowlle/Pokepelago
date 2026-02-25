@@ -46,13 +46,6 @@ class EnableGen9(Toggle):
     display_name = "Enable Gen 9"
     default = True
 
-class Shadows(Choice):
-    """How to display unlocked but unguessed Pokemon. Shadows makes them silhouettes. Not Guessable means they stay hidden until hinted (or shadows enabled)."""
-    display_name = "Shadows"
-    option_off = 0
-    option_on = 1
-    default = 1
-
 class EnableDexsanity(Toggle):
     """If enabled, you must find the specific Pokemon item to guess it."""
     display_name = "Enable Dexsanity"
@@ -204,7 +197,6 @@ class PokepelagoOptions(PerGameCommonOptions):
     gen7: EnableGen7
     gen8: EnableGen8
     gen9: EnableGen9
-    shadows: Shadows
     enable_dexsanity: EnableDexsanity
     enable_region_lock: EnableRegionLock
     type_locks: TypeLocks

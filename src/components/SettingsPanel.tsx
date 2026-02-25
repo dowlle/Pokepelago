@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { GENERATIONS } from '../types/pokemon';
-import { X, Server, Wifi, LayoutGrid, Maximize, Image, Trash2, Upload } from 'lucide-react';
+import { X, Server, Wifi, LayoutGrid, Maximize, Image, Trash2, Upload, Cloud } from 'lucide-react';
 import { importFromFiles, clearAllSprites } from '../services/spriteService';
 
 interface SettingsPanelProps {
@@ -82,6 +82,20 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
             await clearAllSprites();
             await refreshSpriteCount();
         }
+    };
+
+    const handleRepoUrlBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        let url = e.target.value.trim();
+        if (!url) return;
+
+        // Auto-convert standard GitHub tree/blob URLs to raw URLs
+        if (url.includes('github.com') && url.includes('/tree/')) {
+            url = url.replace('github.com', 'raw.githubusercontent.com').replace('/tree/', '/');
+        } else if (url.includes('github.com') && url.includes('/blob/')) {
+            url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+        }
+
+        updateUiSettings({ spriteRepoUrl: url });
     };
 
     const settingsContent = (
@@ -272,29 +286,57 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
                         />
                     </label>
 
-                    <div className="space-y-2">
-                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-700 rounded-xl hover:bg-gray-800/40 hover:border-gray-600 transition-all cursor-pointer group">
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                <Upload size={24} className="text-gray-500 group-hover:text-blue-400 mb-2" />
-                                <p className="text-[11px] text-gray-400 group-hover:text-gray-200 font-bold uppercase tracking-tighter">
-                                    {importProgress !== null ? `Processing ${importProgress}...` : 'Import Sprite Folder'}
-                                </p>
-                                <p className="text-[9px] text-gray-600">
-                                    {importProgress !== null ? 'Please wait' : "Select the 'sprites' directory"}
+                    {uiSettings.enableSprites && (
+                        <div className="space-y-3 bg-gray-900/30 p-3 rounded-xl border border-gray-800/50">
+                            <div>
+                                <label className="flex items-center gap-2 text-[10px] text-gray-400 mb-2 uppercase tracking-tight font-bold">
+                                    <Cloud size={14} className="text-blue-400" />
+                                    Remote Sprite Repository (Recommended)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={uiSettings.spriteRepoUrl || ''}
+                                    onChange={(e) => updateUiSettings({ spriteRepoUrl: e.target.value })}
+                                    onBlur={handleRepoUrlBlur}
+                                    placeholder="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites"
+                                    className="w-full px-3 py-2 bg-gray-950 border border-gray-700/80 rounded inline-block text-[11px] text-gray-300 outline-none focus:border-blue-500 transition-colors"
+                                />
+                                <p className="text-[9px] text-gray-500 mt-1.5 leading-snug">
+                                    Load sprites on-demand. Enter a GitHub URL to the <code className="bg-black/40 px-1 rounded text-gray-400">sprites</code> folder and it will be auto-converted.
                                 </p>
                             </div>
-                            <input
-                                type="file"
-                                className="hidden"
-                                multiple
-                                {...{ webkitdirectory: "", directory: "" } as any}
-                                onChange={handleImport}
-                            />
-                        </label>
-                        <p className="text-[9px] text-gray-500 italic text-center">
-                            Check the <a href="https://github.com/dowlle/Pokepelago#1-download-the-sprites" target="_blank" rel="noreferrer" className="text-gray-400 hover:text-white underline">Poképelago README</a> for sprite pack instructions.
-                        </p>
-                    </div>
+
+                            <div className="relative py-2">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-gray-800/60"></div>
+                                </div>
+                                <div className="relative flex justify-center">
+                                    <span className="bg-[#151921] px-2 text-[10px] text-gray-600 font-bold uppercase tracking-widest">OR</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="flex flex-col items-center justify-center w-full h-20 border border-dashed border-gray-700/60 rounded-xl hover:bg-gray-800/40 hover:border-gray-500 transition-all cursor-pointer group">
+                                    <div className="flex flex-col items-center justify-center pt-3 pb-4">
+                                        <Upload size={20} className="text-gray-500 group-hover:text-blue-400 mb-1" />
+                                        <p className="text-[10px] text-gray-400 group-hover:text-gray-200 font-bold uppercase tracking-tighter">
+                                            {importProgress !== null ? `Processing ${importProgress}...` : 'Import Local Folder'}
+                                        </p>
+                                    </div>
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        multiple
+                                        {...{ webkitdirectory: "", directory: "" } as any}
+                                        onChange={handleImport}
+                                    />
+                                </label>
+                                <p className="text-[9px] text-gray-500 italic text-center">
+                                    Warning: Browsers may freeze when importing large (1GB+) folders.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </section>
 
@@ -334,23 +376,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, i
                         />
                     </label>
 
-                    {gameMode === 'standalone' && (
-                        <label className="flex items-center justify-between p-3 bg-gray-800/30 border border-gray-700 rounded hover:bg-gray-800/50 transition-colors cursor-pointer group">
-                            <div className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded-full bg-blue-950 border border-blue-800 opacity-40 group-hover:scale-110 transition-transform" />
-                                <div>
-                                    <div className="text-xs font-bold text-gray-200">Enable Shadows</div>
-                                    <div className="text-[9px] text-gray-500">Show silhouettes for unexplored Pokémon</div>
-                                </div>
+                    <label className="flex items-center justify-between p-3 bg-gray-800/30 border border-gray-700 rounded hover:bg-gray-800/50 transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full bg-blue-950 border border-blue-800 opacity-40 group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="text-xs font-bold text-gray-200">Enable Shadows</div>
+                                <div className="text-[9px] text-gray-500">Show silhouettes for unexplored Pokémon</div>
                             </div>
-                            <input
-                                type="checkbox"
-                                checked={uiSettings.enableShadows}
-                                onChange={(e) => updateUiSettings({ enableShadows: e.target.checked })}
-                                className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-blue-600 focus:ring-blue-500"
-                            />
-                        </label>
-                    )}
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={uiSettings.enableShadows}
+                            onChange={(e) => updateUiSettings({ enableShadows: e.target.checked })}
+                            className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-blue-600 focus:ring-blue-500"
+                        />
+                    </label>
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-gray-800/50">
