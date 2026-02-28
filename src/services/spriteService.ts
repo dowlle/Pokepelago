@@ -44,6 +44,45 @@ export const generateSpriteKey = (id: number, options: { shiny?: boolean; animat
     return parts.join('_');
 };
 
+const getSpritePath = (id: number, options: { shiny?: boolean; animated?: boolean }) => {
+    if (options.animated) {
+        if (options.shiny) return `pokemon/other/showdown/shiny/${id}.gif`;
+        return `pokemon/other/showdown/${id}.gif`;
+    }
+    if (options.shiny) return `pokemon/shiny/${id}.png`;
+    return `pokemon/${id}.png`;
+};
+
+export const fetchAndCacheSprite = async (repoUrl: string, id: number, options: { shiny?: boolean; animated?: boolean } = {}): Promise<Blob | null> => {
+    const key = generateSpriteKey(id, options);
+
+    // 1. Check Cache
+    const cached = await getSprite(key);
+    if (cached) return cached;
+
+    // 2. Fetch if repo URL exists
+    if (!repoUrl) return null;
+
+    try {
+        const cleanRepoPath = repoUrl.endsWith('/') ? repoUrl.slice(0, -1) : repoUrl;
+        const filePath = getSpritePath(id, options);
+        const url = `${cleanRepoPath}/${filePath}`;
+
+        const response = await fetch(url);
+        if (!response.ok) return null;
+
+        const blob = await response.blob();
+        if (blob.size === 0 || !blob.type.includes('image/')) return null;
+
+        // 3. Cache it
+        await saveSprite(key, blob);
+        return blob;
+    } catch (e) {
+        console.warn(`Failed to fetch sprite from ${repoUrl}`, e);
+        return null;
+    }
+};
+
 export const importFromFiles = async (files: FileList | File[], onProgress?: (count: number) => void) => {
     // Expected file names: 1.png, 1_shiny.png, 1.gif, 1_shiny.gif, etc.
     // Or folders: static/1.png, shiny/1.png, animated/1.gif, animated/shiny_1.gif

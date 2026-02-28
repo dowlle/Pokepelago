@@ -9,7 +9,7 @@ import type {
     Item
 } from 'archipelago.js';
 import pokemonMetadata from '../data/pokemon_metadata.json';
-import { getSprite, countSprites, generateSpriteKey } from '../services/spriteService';
+import { countSprites } from '../services/spriteService';
 
 export interface LogEntry {
     id: string;
@@ -34,7 +34,6 @@ interface GameState {
     isLoading: boolean;
     generationFilter: number[];
     uiSettings: UISettings;
-    shadowsEnabled: boolean;
     shinyIds: Set<number>;
     regionLockEnabled: boolean;
     dexsanityEnabled: boolean;
@@ -53,6 +52,7 @@ interface GameState {
     };
     logs: LogEntry[];
     gameMode: 'archipelago' | 'standalone' | null;
+    starterDexIds: Set<number>;
 }
 
 export interface UISettings {
@@ -60,6 +60,7 @@ export interface UISettings {
     masonry: boolean;
     enableSprites: boolean;
     enableShadows: boolean;
+    spriteRepoUrl: string;
 }
 
 interface ConnectionInfo {
@@ -124,7 +125,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
     const [hintedIds, setHintedIds] = useState<Set<number>>(new Set());
     const [shinyIds, setShinyIds] = useState<Set<number>>(new Set());
-    const [shadowsEnabled, setShadowsEnabled] = useState(false);
     const [goal, setGoal] = useState<GameState['goal'] | undefined>();
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [selectedPokemonId, setSelectedPokemonId] = useState<number | null>(null);
@@ -135,6 +135,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [legendaryGating, setLegendaryGating] = useState(0);
     const [regionPasses, setRegionPasses] = useState<Set<string>>(new Set());
     const [typeUnlocks, setTypeUnlocks] = useState<Set<string>>(new Set());
+    const [starterDexIds, setStarterDexIds] = useState<Set<number>>(new Set());
     const [masterBalls, setMasterBalls] = useState(0);
     const [pokegears, setPokegears] = useState(0);
     const [pokedexes, setPokedexes] = useState(0);
@@ -177,19 +178,29 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
 
+    const [connectionError, setConnectionError] = useState<string | null>(null);
+    const [uiSettings, setUiSettings] = useState<UISettings>(() => {
+        const saved = localStorage.getItem('pokepelago_ui');
+        return saved ? JSON.parse(saved) : { widescreen: false, masonry: false, enableSprites: true, enableShadows: false, spriteRepoUrl: '' };
+    });
+
     const refreshSpriteCount = useCallback(async () => {
         const count = await countSprites();
         setSpriteCount(count);
     }, []);
 
     const getSpriteUrl = useCallback(async (id: number, options: { shiny?: boolean; animated?: boolean } = {}) => {
-        const key = generateSpriteKey(id, options);
-        const blob = await getSprite(key);
+        if (!uiSettings.enableSprites) return null;
+
+        // Use the new fetching logic inside spriteService which acts as a cache layer
+        const { fetchAndCacheSprite } = await import('../services/spriteService');
+        const blob = await fetchAndCacheSprite(uiSettings.spriteRepoUrl, id, options);
+
         if (blob) {
             return URL.createObjectURL(blob);
         }
         return null;
-    }, []);
+    }, [uiSettings.enableSprites, uiSettings.spriteRepoUrl]);
 
     useEffect(() => {
         refreshSpriteCount();
@@ -222,12 +233,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     const [isConnected, setIsConnected] = useState(false);
-    const [connectionError, setConnectionError] = useState<string | null>(null);
-    const [uiSettings, setUiSettings] = useState<UISettings>(() => {
-        const saved = localStorage.getItem('pokepelago_ui');
-        return saved ? JSON.parse(saved) : { widescreen: false, masonry: false, enableSprites: true, enableShadows: false };
-    });
-
     const clientRef = useRef<Client | null>(null);
 
     // Save UI settings
@@ -504,15 +509,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         setGenerationFilter(newFilter);
                     }
 
-                    // Shadows setting
-                    setShadowsEnabled(!!slotData.shadows);
-
                     // Logic settings
                     setRegionLockEnabled(!!slotData.enable_region_lock);
                     setDexsanityEnabled(slotData.enable_dexsanity !== undefined ? !!slotData.enable_dexsanity : true);
                     setTypeLocksEnabled(!!slotData.type_locks);
                     setTypeLockMode(slotData.type_lock_mode ?? 0);
                     setLegendaryGating(slotData.legendary_gating ?? 0);
+
+                    if (Array.isArray(slotData.starter_dex_ids)) {
+                        setStarterDexIds(new Set(slotData.starter_dex_ids));
+                    } else {
+                        setStarterDexIds(new Set());
+                    }
 
                     // Goal setting
                     if (slotData.goal !== undefined && slotData.goal_amount !== undefined) {
@@ -774,9 +782,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // --- ARCHIPELAGO PROGRESSION ---
         // All checks are INDEPENDENT — a Pokemon may fail multiple simultaneously.
-        // We return the first failing check so the UI shows the most important blocker.
+        // 1. Starter Location Override
+        // Sphere 0 locations logically have no server-side access rules, enabling early item retrieval
+        if (starterDexIds.has(id)) {
+            return { canGuess: true };
+        }
 
-        // 1. Legendary Gating: must collect N non-legendary Pokemon first
+        // 2. Legendary Gating: must collect N non-legendary Pokemon first
         if (legendaryGating > 0 && data.is_legendary) {
             const collected = unlockedIds.size;
             if (collected < legendaryGating) {
@@ -788,7 +800,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         }
 
-        // 2. Region Lock: must have the region pass for this Pokemon's generation
+        // 3. Region Lock: must have the region pass for this Pokemon's generation
         if (regionLockEnabled) {
             const region = GENERATIONS.find(g => id >= g.startId && id <= g.endId)?.region;
             if (region && !regionPasses.has(region)) {
@@ -800,16 +812,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         }
 
-        // 3. Dexsanity: must have received the specific Pokemon item
-        if (dexsanityEnabled && !unlockedIds.has(id)) {
-            return {
-                canGuess: false,
-                reason: 'Requires Pokémon item',
-                missingPokemon: true
-            };
-        }
+        // 4. Dexsanity Lock removed.
+        // Dexsanity forces items to function sequentially through multiworld placement, but checking the
+        // locations themselves is not client-side restricted. (AP Server does not enforce finding the item first).
 
-        // 4. Type Lock: must have the required type unlock(s)
+        // 5. Type Lock: must have the required type unlock(s)
         if (typeLocksEnabled) {
             const pokemonTypes: string[] = data.types.map((t: string) => t.charAt(0).toUpperCase() + t.slice(1));
             const unlockedTypes = pokemonTypes.filter(t => typeUnlocks.has(t));
@@ -850,7 +857,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             connectionError,
             connect,
             disconnect,
-            shadowsEnabled,
             goal,
             logs,
             addLog,
@@ -867,6 +873,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             legendaryGating,
             regionPasses,
             typeUnlocks,
+            starterDexIds,
             masterBalls,
             pokegears,
             pokedexes,

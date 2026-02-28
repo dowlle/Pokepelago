@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import time
 import shutil
+import re
 
 ARCHIPELAGO_EXE = r"C:\ProgramData\Archipelago\ArchipelagoGenerate.exe"
 TIMEOUT_SECONDS = 90  # per-config timeout
@@ -68,8 +69,32 @@ def run_config(label: str, yaml_vars: dict) -> dict:
         combined = (result.stdout or "") + (result.stderr or "")
 
         if result.returncode == 0 and "FillError" not in combined and "Error" not in combined:
-            status = "PASS"
-            detail = f"{elapsed:.1f}s"
+            
+            # Check for Item/Location mismatch specifically requested by user
+            # Archipelago 0.6+ doesn't always print explicit itempool stats in the format we assumed.
+            # Instead we must parse:
+            # " pokepelago                              : v0.0.0  | Items:  1059 | Locations:  1124"
+            # BUT wait, the Items/Location count printed there is the generic game definition, not the instance count.
+            # Ensure no FillError before doing item matching
+            # Extract: "[Pokepelago] Player 1 Locations: X | Items in pool: Y | Precollected: Z"
+            match_items = re.search(r"\[Pokepelago\] Player 1 Locations: (\d+) \| Items in pool: (\d+) \| Precollected: (\d+)", combined)
+            if match_items:
+                locs = int(match_items.group(1))
+                items_in_pool = int(match_items.group(2))
+                precollected = int(match_items.group(3))
+                
+                # Check for Item/Location mismatch specifically requested by user
+                # Base locations in generated worlds are typically pool items + precollected items (if precollected take up logic spots).
+                # Actually, in Pokepelago, total_locations == len(pool_items). Precollected items do NOT take location slots.
+                if locs != items_in_pool:
+                    status = "COUNT_MISMATCH"
+                    detail = f"Locs ({locs}) != Pool ({items_in_pool})"
+                else:
+                    status = "PASS"
+                    detail = f"{elapsed:.1f}s (L={locs} I={items_in_pool} P={precollected})"
+            else:
+                 status = "NO_STATS"
+                 detail = "Log didn't contain fill stats"
         else:
             if "FillError" in combined:
                 status = "FILL_ERROR"
@@ -122,6 +147,14 @@ def main():
         legendary_gating=50, goal="any_pokemon",
         goal_amount=200, goal_region="kanto"
     )
+
+    results.append(run_config("08_DexRegType", {
+        **base_vars,
+        "dexsanity": "true",
+        "region_lock": "true",
+        "type_locks": "true"
+    }))
+
     combos = [(d, r, t)
               for d in (False, True)
               for r in (False, True)
@@ -136,7 +169,7 @@ def main():
              "type_locks": str(typ).lower()}
         r = run_config(label, v)
         results.append(r)
-        icon = {"PASS": "✅", "FILL_ERROR": "❌", "TIMEOUT": "⏰", "ERROR": "💥"}.get(r["status"], "?")
+        icon = {"PASS": "✅", "FILL_ERROR": "❌", "TIMEOUT": "⏰", "ERROR": "💥", "COUNT_MISMATCH": "⚠️", "NO_STATS": "❓"}.get(r["status"], "?")
         print(f"{icon} {r['status']} — {r['detail']}")
 
     # --- Part 2: All 4 goals with hardest combo (dex+reg+type ON) ---
@@ -158,7 +191,7 @@ def main():
              "type_locks": "true"}
         r = run_config(label, v)
         results.append(r)
-        icon = {"PASS": "✅", "FILL_ERROR": "❌", "TIMEOUT": "⏰", "ERROR": "💥"}.get(r["status"], "?")
+        icon = {"PASS": "✅", "FILL_ERROR": "❌", "TIMEOUT": "⏰", "ERROR": "💥", "COUNT_MISMATCH": "⚠️", "NO_STATS": "❓"}.get(r["status"], "?")
         print(f"{icon} {r['status']} — {r['detail']}")
 
     # --- Summary ---

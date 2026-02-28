@@ -62,7 +62,29 @@ class PokepelagoWorld(World):
         self.dropped_dex_ids = set()
 
     def generate_early(self):
+        # 1. Deadlock Prevention: if both Region and Type locks are active,
+        # the player MUST start with at least 1 region and 1 type unlocked to make any guess.
+        if self.options.enable_region_lock.value and self.options.type_locks.value:
+            if self.options.starting_region_unlocks.value < 1:
+                self.options.starting_region_unlocks.value = 1
+            if self.options.starting_type_unlocks.value < 1:
+                self.options.starting_type_unlocks.value = 1
+
+        # 2. Calculate optimal drops for item pool balancing
         self._calculate_excess_and_drops()
+
+        # 3. Calculate Win Condition Target early so we can refer to it
+        goal_type = self.options.goal.value
+        goal_amount = self.options.goal_amount.value
+        total_possible = sum(1 for dex_id in pokemon_data if self._is_dex_id_enabled(int(dex_id)))
+
+        if goal_type == 0:  # Any Pokemon
+            self.required_catch_goal = min(goal_amount, total_possible)
+        elif goal_type == 1:  # Percentage
+            self.required_catch_goal = max(1, round((goal_amount / 100.0) * total_possible))
+        else: # Region or Legendaries
+            # Handled dynamically in set_rules via specific conditions
+            self.required_catch_goal = -1
 
     def _calculate_excess_and_drops(self):
         # Calculate Logic Balance
@@ -183,17 +205,39 @@ class PokepelagoWorld(World):
     USEFUL_ITEMS = {"Master Ball", "Pokegear", "Pokedex", "Shiny Upgrade"}
 
     def create_item(self, name: str) -> Item:
+        item_id = item_table.get(name)
+        if item_id is None:
+            # Handle abstract / internal items
+            if name == "Dex Entry":
+                return Item(name, ItemClassification.progression, None, self.player)
+            elif name == "Victory":
+                return Item(name, ItemClassification.progression, None, self.player)
+            
+            # Weighted filler creates "Nothing" items
+            if name == "Nothing":
+                return Item(name, ItemClassification.filler, None, self.player)
+
+            raise KeyError(f"Item '{name}' not found in item table")
+
         if name in self.TRAP_ITEMS:
             classification = ItemClassification.trap
         elif name in self.USEFUL_ITEMS:
             classification = ItemClassification.useful
         elif "Pass" in name or "Unlock" in name:
-            classification = ItemClassification.progression
+            classification = ItemClassification.progression_skip_balancing
         elif name.startswith("Pokemon #"):
-            classification = ItemClassification.progression
+            if self.options.enable_dexsanity.value:
+                # Pokemon items MUST skip balancing so they aren't forcibly placed in late "Catch X" spheres,
+                # which causes a circular dependency deadlock.
+                classification = ItemClassification.progression_skip_balancing
+            else:
+                # If Dexsanity is OFF, the item itself just acts as a tracker/filler in the player's inventory
+                # AP doesn't need to prioritize placing it because the "Event: Guessed X" locations handle the graph.
+                classification = ItemClassification.filler
         else:
             classification = ItemClassification.filler
-        return Item(name, classification, item_table[name], self.player)
+            
+        return Item(name, classification, item_id, self.player)
 
     # collect_item override removed — Pokemon items are now classified as `progression`,
     # so AP's default collect_item already tracks them in prog_items automatically.
@@ -203,10 +247,6 @@ class PokepelagoWorld(World):
         enabled_items = []
         
         # 1. Determine which Pokemon Items are in the pool
-        # If Dexsanity is ON, they are Progression (unless excluded by other means?)
-        # If Dexsanity is OFF, they are Useful/Filler (or still Progression? No, strict logic implies they are not needed).
-        # But for 'Standard' AP, we usually keep them in pool.
-        
         for name, item_id in item_table.items():
             # Skip special items, they are handled separately
             if item_id >= 106000:
@@ -218,21 +258,24 @@ class PokepelagoWorld(World):
                 if dex_id in self.dropped_dex_ids:
                     continue
 
-                # If Dexsanity is OFF, we don't want Pokemon items in the pool; we want filler.
-                if not self.options.enable_dexsanity.value:
-                    continue
-                item = self.create_item(name)
-                # Adjust classification based on Dexsanity
-                if not self.options.enable_dexsanity.value:
-                    item.classification = ItemClassification.useful # Or filler? Useful feels right for collection.
-                enabled_items.append(item)
+                # If Dexsanity is ON, we add the physical Pokemon items
+                if self.options.enable_dexsanity.value:
+                    item = self.create_item(name)
+                    enabled_items.append(item)
 
+        # 2. Virtual Event Tracking (If Dexsanity is OFF)
+        dex_entry_items = []
+        if not self.options.enable_dexsanity.value:
+            # We create an abstract "Dex Entry" item for EVERY enabled Pokemon location
+            # so the multiworld server can track guesses locally without cluttering the pool.
+            for start_id, end_id in self._get_enabled_gens():
+                for dex_id in range(start_id, end_id + 1):
+                    # These items are internal only, so we give them no ID and classification progression
+                    item = Item("Dex Entry", ItemClassification.progression, None, self.player)
+                    dex_entry_items.append(item)
 
-        # 2. (Special items are now weight-based filler — no fixed counts)
 
         # 3. Create Region Passes (if Region Lock enabled)
-        # Note: Even if Region Lock is OFF, we might want them in pool as Filler? 
-        # Or just don't create them. logic implies they don't exist if OFF.
         region_passes = []
         if self.options.enable_region_lock.value:
             regions_info = [
@@ -260,14 +303,11 @@ class PokepelagoWorld(World):
                 type_unlocks.append(self.create_item(item_name))
 
         # 5. Handle Starting Inventory & Guarantees
-        
         start_regions_count = self.options.starting_region_unlocks.value
         start_types_count = self.options.starting_type_unlocks.value
         start_pokemon_count = self.options.starting_pokemon_count.value
 
         # Safety floor: if Region Lock is on, the player must start with ≥1 region pass.
-        # Without it, ALL Check locations are locked behind passes that sit in the item pool.
-        # AP's beatability sweep sees 0 reachable locations and aborts generation.
         if self.options.enable_region_lock.value and start_regions_count < 1:
             start_regions_count = 1
             
@@ -276,7 +316,6 @@ class PokepelagoWorld(World):
 
         precollected = []
         
-        # Helper lists to manage available vs used
         available_region_passes = region_passes[:]
         available_type_unlocks = type_unlocks[:]
         available_pokemon_items = [i for i in enabled_items if "Pokemon #" in i.name]
@@ -291,180 +330,84 @@ class PokepelagoWorld(World):
         for _ in range(min(len(available_type_unlocks), start_types_count)):
             precollected.append(available_type_unlocks.pop())
 
-        # C. Pre-collect Pokemon (If Dexsanity)
-        # If Dexsanity is ON, we MUST give the items to allow them to be guessable.
-        # If Dexsanity is OFF, we don't need to give items access-wise, but options say "Starting Pokemon Count".
-        # We will assume this means "Give Items" in both cases for consistency/Unlock feeling, 
-        # OR just rely on logic for Dexsanity OFF.
-        # Given the "Starting Pokemon Count" option exists, giving the items is safer.
-        self.multiworld.random.shuffle(available_pokemon_items)
-        starting_pokemon_items = []
-        for _ in range(min(len(available_pokemon_items), start_pokemon_count)):
-            item = available_pokemon_items.pop()
-            starting_pokemon_items.append(item)
-            precollected.append(item)
+        # C. Identify Starter Pokemon (Used later for pre_fill of passes)
+        # We must identify `start_pokemon_count` locations that will be forced open.
+        self.starter_dex_ids = []
         
-        # D. Ensure Accessibility
-        # Only needed if locks are active.
-        if self.options.enable_region_lock.value or self.options.type_locks.value:
+        enabled_ids = []
+        for start_id, end_id in self._get_enabled_gens():
+            enabled_ids.extend(range(start_id, end_id + 1))
             
+        self.multiworld.random.shuffle(enabled_ids)
+        for _ in range(min(len(enabled_ids), start_pokemon_count)):
+            self.starter_dex_ids.append(enabled_ids.pop())
+
+        # Give the physical items if Dexsanity is ON so the player owns them instantly
+        if self.options.enable_dexsanity.value:
+            for dex_id in self.starter_dex_ids:
+                starter_item_name = f"Pokemon #{dex_id}"
+                for idx, item in enumerate(available_pokemon_items):
+                    if item.name == starter_item_name:
+                        precollected.append(available_pokemon_items.pop(idx))
+                        break
+
+        # D. Ensure Accessibility for Starters
+        # If locks are active, the Starter Pokemon MUST have their requirements met by the starting inventory.
+        if self.options.enable_region_lock.value or self.options.type_locks.value:
             current_regions = {i.name for i in precollected if "Pass" in i.name}
             current_types = {i.name for i in precollected if "Unlock" in i.name}
-            current_pokemon_items = {i.name for i in precollected if "Pokemon #" in i.name}
             
-            # Identify which Pokemon we WANT to be accessible.
-            # If Dexsanity ON: It's the `starting_pokemon_items`.
-            # If Dexsanity OFF: It's ANY `start_pokemon_count` Pokemon.
-            
-            target_pokemon_data = [] # List of (dex_id, data)
-            
-            if self.options.enable_dexsanity.value:
-                 # Check specific started pokemon
-                for item in starting_pokemon_items:
-                    dex_id = item.code - 100000
-                    target_pokemon_data.append((str(dex_id), pokemon_data[str(dex_id)]))
-            else:
-                 # We need to find enough Pokemon that ARE accessible, or make them accessible.
-                 # Strategy: Check currently accessible. If < count, force unlock for random enabled pokemon until >= count.
-                 # PRIORITY: Prefer Pokemon that only need Type Unlocks (Region already unlocked).
-                 
-                 # 1. Identify Accessible and Candidates
-                 accessible_count = 0
-                 candidates_type_only = []
-                 candidates_region_needed = []
-                 
-                 # Get all enabled IDs
-                 enabled_ids = []
-                 for start_id, end_id in self._get_enabled_gens():
-                     enabled_ids.extend(range(start_id, end_id + 1))
-                 
-                 for dex_id in enabled_ids:
-                     p_data = pokemon_data[str(dex_id)]
-                     region_name = self._get_region_name(dex_id)
-                     pass_name = f"{region_name} Pass"
-                     
-                     # Check Region Access
-                     has_region = True
-                     if self.options.enable_region_lock.value:
-                         has_region = pass_name in current_regions
-                     
-                     # Check Type Access
-                     has_type = True
-                     if self.options.type_locks.value:
-                         p_types = p_data['types']
-                         p_type_items = [f"{t.capitalize()} Unlock" for t in p_types]
-                         
-                         if self.options.type_lock_mode.value == 0: # Any
-                             has_type = any(t in current_types for t in p_type_items)
-                         else: # All
-                             has_type = all(t in current_types for t in p_type_items)
-                     
-                     if has_region and has_type:
-                         accessible_count += 1
-                     elif has_region and not has_type:
-                         candidates_type_only.append((str(dex_id), p_data))
-                     else:
-                         candidates_region_needed.append((str(dex_id), p_data))
-                         
-                 # 2. Fill needed count
-                 needed = start_pokemon_count - accessible_count
-                 
-                 if needed > 0:
-                     self.multiworld.random.shuffle(candidates_type_only)
-                     self.multiworld.random.shuffle(candidates_region_needed)
-                     
-                     # Prioritize Type Only
-                     while needed > 0 and candidates_type_only:
-                         target_pokemon_data.append(candidates_type_only.pop())
-                         needed -= 1
-                         
-                     # Then Region Needed
-                     while needed > 0 and candidates_region_needed:
-                         target_pokemon_data.append(candidates_region_needed.pop())
-                         needed -= 1
-
-            # Force unlock for targets
-            for d_id, p_data in target_pokemon_data:
+            for dex_id in self.starter_dex_ids:
+                p_data = pokemon_data[str(dex_id)]
+                
                 # Check Region
                 if self.options.enable_region_lock.value:
-                    r_name = self._get_region_name(int(d_id))
+                    r_name = self._get_region_name(int(dex_id))
                     pass_name = f"{r_name} Pass"
                     if pass_name not in current_regions:
-                        # Find the item object
-                        # It might be in available_region_passes or already somewhere else?
-                        # It should be in available_region_passes
-                        found = False
                         for idx, item in enumerate(available_region_passes):
                             if item.name == pass_name:
                                 precollected.append(available_region_passes.pop(idx))
                                 current_regions.add(pass_name)
-                                found = True
                                 break
-                        if not found and pass_name not in current_regions:
-                             # Should not happen if logic is correct, unless region disabled but pokemon enabled (impossible by config?)
-                             pass
 
-                # Check Types
+                # Check Types (Any Mode)
                 if self.options.type_locks.value:
                     p_types = p_data['types']
-                    # Convert to Item Names
                     p_type_items = [f"{t.capitalize()} Unlock" for t in p_types]
                     
-                    # Check condition
-                    satisfied = False
-                    if self.options.type_lock_mode.value == 0: # Any
-                        if any(t in current_types for t in p_type_items):
-                            satisfied = True
-                        else:
-                            # Need to unlock one. Prefer available ones.
-                            # Pick random type from p_types
-                            self.multiworld.random.shuffle(p_type_items)
-                            for t_name in p_type_items:
-                                # Find in available
-                                for idx, item in enumerate(available_type_unlocks):
-                                    if item.name == t_name:
-                                        precollected.append(available_type_unlocks.pop(idx))
-                                        current_types.add(t_name)
-                                        satisfied = True
-                                        break
-                                if satisfied: break
-                                
-                    else: # All
-                        if all(t in current_types for t in p_type_items):
-                            satisfied = True
-                        else:
-                            # Unlock ALL missing
-                            for t_name in p_type_items:
-                                if t_name not in current_types:
-                                     for idx, item in enumerate(available_type_unlocks):
-                                        if item.name == t_name:
-                                            precollected.append(available_type_unlocks.pop(idx))
-                                            current_types.add(t_name)
-                                            break
+                    if not any(t in current_types for t in p_type_items):
+                        self.multiworld.random.shuffle(p_type_items)
+                        for t_name in p_type_items:
+                            for idx, item in enumerate(available_type_unlocks):
+                                if item.name == t_name:
+                                    precollected.append(available_type_unlocks.pop(idx))
+                                    current_types.add(t_name)
+                                    break
+                            if any(t in current_types for t in p_type_items): break
 
         # 6. Finalize Item Pool
         for item in precollected:
             self.multiworld.precollected_items[self.player].append(item)
             
         pool_items = []
-        pool_items.extend(available_pokemon_items) # Remaining pokemon
+        pool_items.extend(available_pokemon_items) 
         
-        # FIX: Include non-pokemon items from enabled_items (Master Ball etc)
         special_items = [i for i in enabled_items if "Pokemon #" not in i.name]
         pool_items.extend(special_items)
         
-        pool_items.extend(available_region_passes) # Remaining regions
-        pool_items.extend(available_type_unlocks) # Remaining types
-
+        pool_items.extend(available_region_passes)
+        pool_items.extend(available_type_unlocks)
+        
+        # Add the Dex Entry Event items to the pool so they can be placed later
+        pool_items.extend(dex_entry_items)
         
         # Top up the item pool to exactly match the number of locations.
-        # Precollected items do NOT occupy location slots.
         total_locations = self._calculate_total_locations()
+        
+        # Crucial adjustment: 'Events' (Dex Entries) occupy locations, so `pool_items` size MUST equal `total_locations`.
         needed_filler = total_locations - len(pool_items)
 
-        # Build weighted filler table from options
-        # Each entry: (item_name, weight)
-        # "Nothing" creates a generic filler item with no game effect
         filler_table = [
             ("Master Ball",    self.options.filler_weight_master_ball.value),
             ("Pokegear",       self.options.filler_weight_pokegear.value),
@@ -473,12 +416,11 @@ class PokepelagoWorld(World):
             ("Shuffle Trap",   self.options.filler_weight_shuffle_trap.value),
             ("Derpy Trap",     self.options.filler_weight_derpy_trap.value),
             ("Release Trap",   self.options.filler_weight_release_trap.value),
-            (None,             self.options.filler_weight_nothing.value),  # None = generic filler
+            (None,             self.options.filler_weight_nothing.value),
         ]
         filler_names = [name for name, _ in filler_table]
         filler_weights = [w for _, w in filler_table]
 
-        # If all weights are 0, fall back to pure filler
         if sum(filler_weights) == 0:
             filler_names = [None]
             filler_weights = [1]
@@ -492,24 +434,110 @@ class PokepelagoWorld(World):
         
         self.multiworld.itempool += pool_items
 
+        import logging
+        logging.info(f"[Pokepelago] Player {self.player} Locations: {total_locations} | Items in pool: {len(pool_items)} | Precollected: {len(precollected)}")
+
+
     def create_regions(self):
         menu = Region("Menu", self.player, self.multiworld)
         self.multiworld.regions.append(menu)
 
+        # 1. Create Virtual Regions for logic mapping
+        virtual_regions = {}
+        regions_to_create = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"]
+        
+        for r_name in regions_to_create:
+            reg = Region(f"{r_name} Region", self.player, self.multiworld)
+            virtual_regions[r_name] = reg
+            self.multiworld.regions.append(reg)
+            
+            # Create Entrance from Menu
+            ent = next((e for e in menu.exits if e.name == f"To {r_name}"), None)
+            if not ent:
+                from BaseClasses import Entrance
+                ent = Entrance(self.player, f"To {r_name}", menu)
+                menu.exits.append(ent)
+            ent.connect(reg)
+
+            # Assign Region Lock access rule to the Entrance
+            if self.options.enable_region_lock.value:
+                pass_name = f"{r_name} Pass"
+                ent.access_rule = lambda state, pn=pass_name: state.has(pn, self.player)
+
+        # 2. Legendary Gating Region
+        leg_reg = None
+        if self.options.legendary_gating.value > 0:
+            leg_reg = Region("Legendary Encounters", self.player, self.multiworld)
+            self.multiworld.regions.append(leg_reg)
+            
+            from BaseClasses import Entrance
+            ent = Entrance(self.player, "To Legendaries", menu)
+            menu.exits.append(ent)
+            ent.connect(leg_reg)
+            
+            # We defer adding the exact access rule (checking counts) to `set_rules`
+
+        # 3. Populate Locations into appropriate Regions
+        
         for name, loc_id in location_table.items():
             if 200001 <= loc_id <= 201025:
                 dex_id = loc_id - 200000
                 if self._is_dex_id_enabled(dex_id):
-                    # Only add the base location individually if Dexsanity is enabled.
-                    # Otherwise, progression is gated only through Extended Locations.
+                    # Determine target region
+                    target_region = menu
+                    is_legendary = pokemon_data[str(dex_id)]["is_legendary"]
+                    
+                    if dex_id in getattr(self, "starter_dex_ids", []):
+                        # Starters ALWAYS stay in Menu and ALWAYS have NO regional/type locks
+                        target_region = menu
+                    elif leg_reg and is_legendary:
+                        target_region = leg_reg
+                    else:
+                        r_name = self._get_region_name(dex_id)
+                        target_region = virtual_regions[r_name]
+                    
+                    # If Dexsanity is ON, we add the base physical location
                     if self.options.enable_dexsanity.value:
-                        loc = Location(self.player, name, loc_id, menu)
-                        menu.locations.append(loc)
+                        loc = Location(self.player, name, loc_id, target_region)
+                        target_region.locations.append(loc)
+                    else:
+                        # Event Generation for Dexsanity OFF
+                        # We create a virtual event location instead of the standard physical one
+                        event_loc = Location(self.player, f"Event: Guessed {name}", None, target_region)
+                        target_region.locations.append(event_loc)
+                        
+                        # We don't place locked items here yet, we do that in set_rules or a later pass
+                        # However, since AP needs events resolved immediately, we will do it now by extracting them from pool early.
+
             elif loc_id > 201025:
-                # Extended Locations (Catch X Type/Region)
                 if self._is_extended_location_enabled(name):
                     loc = Location(self.player, name, loc_id, menu)
                     menu.locations.append(loc)
+
+        # Place Dex Entry items into their event locations
+        if not self.options.enable_dexsanity.value:
+            dex_entry_items = [i for i in self.multiworld.itempool if i.name == "Dex Entry" and i.player == self.player]
+            dex_entry_index = 0
+            
+            for region in self.multiworld.regions:
+                if region.player == self.player:
+                    for loc in region.locations:
+                        if loc.name.startswith("Event: Guessed "):
+                            if dex_entry_index < len(dex_entry_items):
+                                item = dex_entry_items[dex_entry_index]
+                                loc.place_locked_item(item)
+                                self.multiworld.itempool.remove(item)
+                                dex_entry_index += 1
+                                
+                                # Setup Pokedex group
+                                if "Pokedex" not in self.item_name_groups:
+                                    self.item_name_groups["Pokedex"] = set()
+                                self.item_name_groups["Pokedex"].add("Dex Entry")
+
+        goal_loc = Location(self.player, "Goal Met", None, menu)
+        menu.locations.append(goal_loc)
+        victory_item = Item("Victory", ItemClassification.progression, None, self.player)
+        goal_loc.place_locked_item(victory_item)
 
     def _count_enabled_extended_locations(self) -> int:
         count_locs = 0
@@ -523,7 +551,6 @@ class PokepelagoWorld(World):
         parts = name.split()
         try:
             if "Type" in name:
-                # Catch {tier} {Type} Type Pokemon
                 count = int(parts[1])
                 t_name = parts[2]
                 group_name = f"{t_name} Type Pokemon"
@@ -536,10 +563,8 @@ class PokepelagoWorld(World):
                             if self._is_dex_id_enabled(d_id):
                                 possible += 1
                         except: pass
-                # print(f"DEBUG: {name} - Group: {group_name}, Possible: {possible}, Target: {count}")
                 return possible >= count
             else:
-                # Catch {tier} {Region} Pokemon
                 count = int(parts[1])
                 r_name = parts[2]
                 group_name = f"{r_name} Pokemon"
@@ -552,7 +577,6 @@ class PokepelagoWorld(World):
                                 if self._is_dex_id_enabled(d_id):
                                     possible += 1
                             except: pass
-                # print(f"DEBUG: {name} - Group: {group_name}, Possible: {possible}, Target: {count}") 
                 return possible >= count
         except Exception as e:
             print(f"DEBUG EXCEPTION in {name}: {e}")
@@ -574,61 +598,86 @@ class PokepelagoWorld(World):
         enable_dexsanity = self.options.enable_dexsanity.value
         enable_region_lock = self.options.enable_region_lock.value
         use_type_locks = self.options.type_locks.value
-        type_lock_mode = self.options.type_lock_mode.value # 0=Any, 1=All
         leg_gating = self.options.legendary_gating.value
 
-        menu = self.multiworld.get_region("Menu", self.player)
-        
-        # Track underlying Pokemon requirements to evaluate Extended Locations accurately
-        pokemon_base_reqs = {} # dex_id -> lambda state: bool
+        # --- Build per-Pokemon access rules ---
+        # Each rule is: has(RegionPass) AND has_any(TypeUnlocks)
+        # This is applied directly on each location — no Region Entrances.
+        pokemon_base_reqs = {}  # dex_id -> lambda state: bool (full rule, used for Extended Locs when Dex=OFF)
         non_leg_reqs = []
-        
+
+        # --- Build per-Pokemon access rules ---
+        # Each rule is: has(RegionPass) AND has_any(TypeUnlocks)
+        # We only really need to check Type Unlocks here, because the Region Entrance 
+        # inherently gates access to the locations physically inside the region.
+        # However, checking both is perfectly safe.
+        pokemon_base_reqs = {}  # dex_id -> lambda state: bool (full rule, used for Extended Locs when Dex=OFF)
+        non_leg_reqs = []
+
         for dex_id_str, p_data in pokemon_data.items():
             dex_id = int(dex_id_str)
             if not self._is_dex_id_enabled(dex_id):
                 continue
-                
+
             region_pass = f"{self._get_region_name(dex_id)} Pass" if enable_region_lock else None
-            t_unlocks = [f"{t.capitalize()} Unlock" for t in p_data['types']] if use_type_locks else []
-            is_leg = p_data['is_legendary']
-            
-            # Create a localized closure for fast execution without overhead
-            def make_req(rp, tus, mode):
+            t_unlocks = tuple(f"{t.capitalize()} Unlock" for t in p_data['types']) if use_type_locks else ()
+
+            def make_req(rp, tus):
                 def check(state, p=self.player):
                     if rp and not state.has(rp, p): return False
-                    if tus:
-                        if mode == 0:
-                            if not any(state.has(t, p) for t in tus): return False
-                        else:
-                            if not all(state.has(t, p) for t in tus): return False
+                    if tus and not state.has_any(tus, p): return False
                     return True
                 return check
-                
-            pokemon_base_reqs[dex_id] = make_req(region_pass, t_unlocks, type_lock_mode)
-            if not is_leg:
+
+            pokemon_base_reqs[dex_id] = make_req(region_pass, t_unlocks)
+            if not p_data['is_legendary']:
                 non_leg_reqs.append(pokemon_base_reqs[dex_id])
 
-        # Wrap legendary ones to handle legendary gating
+        tracking_group = "Pokemon" if enable_dexsanity else "Pokedex"
+
+        # Wrap legendary requirements with the legendary gating count
         if leg_gating > 0:
             for dex_id_str, p_data in pokemon_data.items():
                 dex_id = int(dex_id_str)
                 if p_data['is_legendary'] and dex_id in pokemon_base_reqs:
                     old_req = pokemon_base_reqs[dex_id]
-                    def make_leg_req(base_r, nreqs, req_count, dexsanity):
+                    def make_leg_req(base_r, nreqs, req_count, tk_group):
                         def check(state, p=self.player):
                             if not base_r(state): return False
-                            if dexsanity:
-                                if state.count_group("Pokemon", p) < req_count: return False
-                            else:
-                                if sum(1 for r in nreqs if r(state)) < req_count: return False
+                            if state.count_group(tk_group, p) < req_count: return False
                             return True
                         return check
-                    pokemon_base_reqs[dex_id] = make_leg_req(old_req, non_leg_reqs, leg_gating, enable_dexsanity)
+                    pokemon_base_reqs[dex_id] = make_leg_req(old_req, non_leg_reqs, leg_gating, tracking_group)
 
-        # Precompile Group requirements (Only used for Dexsanity OFF)
-        pokemon_group_ext_reqs = {g: [] for g in self.item_name_groups}
-        for g, items in self.item_name_groups.items():
-            for name in items:
+            # Let's also enforce this rule on the Region Entrance to "Legendary Encounters"
+            leg_ent = next((e for menu in self.multiworld.regions if menu.name == "Menu" for e in menu.exits if e.name == "To Legendaries"), None)
+            if leg_ent:
+                leg_ent.access_rule = lambda state, count=leg_gating, g=tracking_group: state.count_group(g, self.player) >= count
+
+        # --- Apply rules to locations ---
+        for loc in self.multiworld.get_locations(self.player):
+            if loc.address is None and loc.name.startswith("Event: Guessed Catch "):
+                # Event Locations for Dexsanity=OFF
+                pkmn_name = loc.name.replace("Event: Guessed Catch ", "")
+                # Find dex_id from pokemon_data
+                dex_id = None
+                for d_id_str, pd in pokemon_data.items():
+                    if pd['name'] == pkmn_name:
+                        dex_id = int(d_id_str)
+                        break
+                if dex_id and dex_id not in getattr(self, "starter_dex_ids", []):
+                    # Apply rules if it's not a starter
+                    loc.access_rule = pokemon_base_reqs[dex_id]
+            
+            elif loc.address is not None and 200001 <= loc.address <= 201025:
+                # Base Physical Locations for Dexsanity=ON
+                dex_id = loc.address - 200000
+                if dex_id not in getattr(self, "starter_dex_ids", []):
+                     loc.access_rule = pokemon_base_reqs.get(dex_id, lambda state: True)
+
+            elif loc.address is not None and loc.address > 201025:
+                # Extended Location ("Catch X Type/Region Pokemon")
+                # Both ON and OFF can now use `has_group` safely because we built abstract Events!
                 try:
                     d_id = int(name.split("#")[1])
                     if d_id in pokemon_base_reqs:
@@ -702,55 +751,131 @@ class PokepelagoWorld(World):
                 # No access rule needed — leave them freely accessible.
 
         # Victory condition
+                    parts = loc.name.split()
+                    count = int(parts[1])
+                    group_name = f"{parts[2]} Type Pokemon" if "Type" in loc.name else f"{parts[2]} Pokemon"
+                    loc.access_rule = lambda state, g=group_name, c=count: state.has_group(g, self.player, c)
+                except Exception:
+                    loc.access_rule = lambda state: True
+
+
+        # --- Goal Met event location access rule ---
+        goal_loc = self.multiworld.get_location("Goal Met", self.player)
         goal_type = self.options.goal.value
-        goal_amount = self.options.goal_amount.value
-        
-        # Calculate max possible pokemon based on available locations
-        total_possible = sum(1 for dex_id in pokemon_data if self._is_dex_id_enabled(int(dex_id)))
 
         def count_all_pokemon(state):
-            if enable_dexsanity:
-                return state.count_group("Pokemon", self.player)
-            else:
-                return sum(1 for d in pokemon_base_reqs if pokemon_base_reqs[d](state))
+            return state.count_group(tracking_group, self.player)
 
-        if goal_type == 0:  # Any Pokemon
-            target = min(goal_amount, total_possible)
-            self.multiworld.completion_condition[self.player] = \
-                lambda state, t=target: count_all_pokemon(state) >= t
-        elif goal_type == 1:  # Percentage
-            target = max(1, round((goal_amount / 100.0) * total_possible))
-            self.multiworld.completion_condition[self.player] = \
-                lambda state, t=target: count_all_pokemon(state) >= t
-        elif goal_type == 2: # Region Completion
+        if goal_type in (0, 1):  # Any Pokemon or Percentage
+            goal_loc.access_rule = lambda state: count_all_pokemon(state) >= self.required_catch_goal
+
+        elif goal_type == 2:  # Region Completion
             region_id = self.options.goal_region.value
             region_name = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"][region_id - 1]
+            region_pokemon = [f"Pokemon #{d_id}" if enable_dexsanity else f"Event: Guessed Pokemon #{d_id}" 
+                              for d_id, data in pokemon_data.items()
+                              if self._get_region_name(int(d_id)) == region_name and self._is_dex_id_enabled(int(d_id))]
             
-            region_reqs = []
-            region_pokemon = []
-            for d_id, data in pokemon_data.items():
-                if self._get_region_name(int(d_id)) == region_name and self._is_dex_id_enabled(int(d_id)):
-                    region_pokemon.append(f"Pokemon #{d_id}")
-                    region_reqs.append(pokemon_base_reqs[int(d_id)])
-            
+            # Since Event Tracking generates explicit locations/items, we can just check if we have the items we placed there
+            # Physical items for dexsanity=ON, Event: Guessed locations logically holding Dex Entries for OFF
             if enable_dexsanity:
-                self.multiworld.completion_condition[self.player] = \
-                    lambda state, pjs=region_pokemon: all(state.has(p, self.player) for p in pjs)
+                goal_loc.access_rule = lambda state, pjs=region_pokemon: all(state.has(p, self.player) for p in pjs)
             else:
-                self.multiworld.completion_condition[self.player] = \
-                    lambda state, reqs=region_reqs: all(r(state) for r in reqs)
-        elif goal_type == 3: # All Legendaries
-            legendaries = [f"Pokemon #{d_id}" for d_id, data in pokemon_data.items() if data['is_legendary'] and self._is_dex_id_enabled(int(d_id))]
-            leg_reqs = [pokemon_base_reqs[int(d_id)] for d_id, data in pokemon_data.items() if data['is_legendary'] and self._is_dex_id_enabled(int(d_id))]
-            
-            if enable_dexsanity:
-                self.multiworld.completion_condition[self.player] = \
-                    lambda state, legs=legendaries: all(state.has(l, self.player) for l in legs)
-            else:
-                self.multiworld.completion_condition[self.player] = \
-                    lambda state, reqs=leg_reqs: all(r(state) for r in reqs)
+                 # In Dexsanity=OFF, the player doesn't have "Event: Guessed..." items.
+                 # They have "Dex Entry" items, but they aren't uniquely named per Pokemon.
+                 # Instead, we must rely on evaluating the base rules for all Pokemon in that region.
+                 region_reqs = [pokemon_base_reqs[int(d_id)] for d_id, data in pokemon_data.items()
+                           if self._get_region_name(int(d_id)) == region_name and self._is_dex_id_enabled(int(d_id))]
+                 goal_loc.access_rule = lambda state, reqs=region_reqs: all(r(state) for r in reqs)
 
-    def fill_slot_data(self):
+        elif goal_type == 3:  # All Legendaries
+            leg_reqs = [pokemon_base_reqs[int(d_id)] for d_id, data in pokemon_data.items()
+                        if data['is_legendary'] and self._is_dex_id_enabled(int(d_id))]
+            
+            if enable_dexsanity:
+                legendaries = [f"Pokemon #{d_id}" for d_id, data in pokemon_data.items()
+                               if data['is_legendary'] and self._is_dex_id_enabled(int(d_id))]
+                goal_loc.access_rule = lambda state, legs=legendaries: all(state.has(l, self.player) for l in legs)
+            else:
+                goal_loc.access_rule = lambda state, reqs=leg_reqs: all(r(state) for r in reqs)
+
+        self.multiworld.completion_condition[self.player] = lambda state: state.has("Victory", self.player)
+
+    def pre_fill(self) -> None:
+        """Pre-place Region Passes and Type Unlocks into initially-accessible locations.
+        
+        With the new architecture, Starter Locations are designated early on and have 
+        NO access rules attached to them (they serve as the Sphere 0 logic anchor).
+        We simply dump all the required passes into these specific slots.
+        """
+        from Fill import fill_restrictive, FillError
+
+        key_items = [item for item in self.multiworld.itempool
+                     if item.player == self.player and ("Pass" in item.name or "Unlock" in item.name)]
+        if not key_items:
+            return
+
+        for item in key_items:
+            self.multiworld.itempool.remove(item)
+
+        # Step 1: Find the actual Starter Locations. 
+        # These are the locations corresponding to `self.starter_dex_ids`
+        starter_location_names = []
+        for dex_id in getattr(self, "starter_dex_ids", []):
+            try:
+                pkmn_name = pokemon_data[str(dex_id)]['name']
+                if self.options.enable_dexsanity.value:
+                    starter_location_names.append(f"Catch {pkmn_name}")
+                else:
+                    starter_location_names.append(f"Event: Guessed Catch {pkmn_name}")
+            except Exception:
+                pass
+                
+        open_locations = [
+            loc for loc in self.multiworld.get_unfilled_locations(self.player)
+            if loc.name in starter_location_names
+        ]
+        
+        # In incredibly rare cases / highly restricted seeds, we might not have enough starter locations for the keys.
+        # Fall back to any open location if we need more room.
+        base_state = self.multiworld.state.copy()
+        if len(open_locations) < len(key_items):
+            extra_locs = [
+                loc for loc in self.multiworld.get_unfilled_locations(self.player)
+                if loc.can_reach(base_state) and loc not in open_locations
+            ]
+            self.random.shuffle(extra_locs)
+            needed = len(key_items) - len(open_locations)
+            open_locations.extend(extra_locs[:needed])
+
+        attempts_remaining = 2
+        while attempts_remaining > 0:
+            attempts_remaining -= 1
+            locs_copy = open_locations.copy()
+            items_copy = key_items.copy()
+            self.random.shuffle(locs_copy)
+            try:
+                fill_restrictive(
+                    self.multiworld, base_state, locs_copy, items_copy,
+                    single_player_placement=True, lock=True,
+                    name=f"Pokepelago Key Items P{self.player}"
+                )
+                break
+            except FillError as exc:
+                if attempts_remaining <= 0:
+                    raise exc
+                # Undo partial placement and retry
+                import logging
+                logging.debug(f"[Pokepelago] pre_fill attempt failed for P{self.player}, retrying.")
+                for loc in open_locations:
+                    if loc.locked:
+                        loc.locked = False
+                    if loc.item is not None and loc.item in key_items:
+                        loc.item.location = None
+                        loc.item = None
+
+
+    def fill_slot_data(self) -> dict:
         return {
             "gen1": self.options.gen1.value,
             "gen2": self.options.gen2.value,
@@ -761,7 +886,6 @@ class PokepelagoWorld(World):
             "gen7": self.options.gen7.value,
             "gen8": self.options.gen8.value,
             "gen9": self.options.gen9.value,
-            "shadows": self.options.shadows.value,
             "enable_dexsanity": self.options.enable_dexsanity.value,
             "enable_region_lock": self.options.enable_region_lock.value,
             "type_locks": self.options.type_locks.value,
@@ -781,4 +905,5 @@ class PokepelagoWorld(World):
             "starting_pokemon_count": self.options.starting_pokemon_count.value,
             "starting_type_unlocks": self.options.starting_type_unlocks.value,
             "starting_region_unlocks": self.options.starting_region_unlocks.value,
+            "starter_dex_ids": getattr(self, "starter_dex_ids", []),
         }
