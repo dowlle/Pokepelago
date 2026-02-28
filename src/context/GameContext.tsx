@@ -166,6 +166,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [gameMode, setGameModeState] = useState<'archipelago' | 'standalone' | null>(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.has('splash')) return null;
+
+        // Force splash every 6 hours
+        const lastSplash = localStorage.getItem('pokepelago_last_splash');
+        const now = Date.now();
+        const SIX_HOURS = 6 * 60 * 60 * 1000;
+
+        if (!lastSplash || (now - parseInt(lastSplash)) > SIX_HOURS) {
+            return null;
+        }
+
         return localStorage.getItem('pokepelago_gamemode') as any || null;
     });
 
@@ -173,8 +183,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setGameModeState(mode);
         if (mode) {
             localStorage.setItem('pokepelago_gamemode', mode);
+            // Don't set last_splash here, let the SplashScreen handle it when they click 'Continue'
         } else {
             localStorage.removeItem('pokepelago_gamemode');
+            localStorage.removeItem('pokepelago_last_splash');
         }
     }, []);
 
