@@ -309,9 +309,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         // Send check to Archipelago
-        if (clientRef.current && isConnected) {
+        if (clientRef.current && isConnected && clientRef.current.authenticated) {
             const locationId = LOCATION_OFFSET + id;
-            clientRef.current.check(locationId);
+            try {
+                clientRef.current.check(locationId);
+            } catch (e) {
+                console.error('Failed to send check', e);
+            }
         }
     }, [isConnected]);
 
@@ -390,7 +394,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // --- Goal Checking ---
     useEffect(() => {
-        if (!clientRef.current || !isConnected || gameMode !== 'archipelago' || !goal) return;
+        if (!clientRef.current || !isConnected || !clientRef.current.authenticated || gameMode !== 'archipelago' || !goal) return;
 
         let won = false;
         const guessedPokemonCount = Array.from(checkedIds).filter(id => id <= 1025).length;
@@ -472,7 +476,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                 client.socket.on('connected', (packet: ConnectedPacket) => {
                     console.log(`Connected to Archipelago via ${protocol || '(explicit protocol)'}!`, packet);
-                    setIsConnected(true);
                     setConnectionError(null);
 
                     // Sync already checked locations
@@ -672,6 +675,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     password: info.password,
                     items: itemsHandlingFlags.all,
                 });
+
+                setIsConnected(true);
 
                 localStorage.setItem('pokepelago_connected', 'true');
                 return; // Successfully connected! Exit loop.
