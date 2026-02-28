@@ -1,112 +1,137 @@
 import React from 'react';
 import { useGame } from '../context/GameContext';
-import { Shield, Globe, Laptop, ArrowRight, Download, Github } from 'lucide-react';
+import { Shield, Globe, Laptop, ArrowRight, Download, ExternalLink, Code2, Beaker } from 'lucide-react';
 
 export const SplashScreen: React.FC = () => {
     const { setGameMode } = useGame();
 
+    const NEW_CLIENT_URL = "https://dowlle.github.io/PokepelagoClient/";
+    const NEW_APWORLD_URL = "https://github.com/dowlle/PokepelagoClient/releases";
+
     return (
         <div className="fixed inset-0 z-[100] bg-gray-950 overflow-y-auto font-sans flex items-center justify-center p-4">
             <div className="max-w-4xl w-full">
-                {/* Hero Section */}
-                <div className="text-center mb-12 animate-in fade-in slide-in-from-top-4 duration-1000">
+                {/* Relocation Header */}
+                <div className="text-center mb-8 animate-in fade-in slide-in-from-top-4 duration-1000">
                     <h1 className="text-6xl font-black tracking-tighter mb-4 bg-gradient-to-r from-green-400 via-emerald-500 to-blue-500 bg-clip-text text-transparent">
-                        Poképelago
+                        Poképelago has Moved
                     </h1>
                     <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
-                        A modern, collection-focused Pokémon tracking experience designed for the Archipelago multi-world network.
+                        We've migrated to a new, dedicated repository to improve development, testing, and your overall experience.
                     </p>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-8 mb-12">
-                    {/* Information Card */}
-                    <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-8 backdrop-blur-sm animate-in fade-in slide-in-from-left-4 duration-700 delay-200">
-                        <div className="flex items-center gap-3 mb-6 text-green-400">
-                            <Shield size={24} />
-                            <h2 className="text-xl font-bold">Privacy & Sprites</h2>
-                        </div>
-                        <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                            To comply with community guidelines, this application does not host or serve any Nintendo-ripped assets.
-                            <strong> All sprites must be sourced and imported by you.</strong>
-                        </p>
-
-                        <div className="space-y-4">
-                            <div className="flex gap-4 items-start">
-                                <div className="p-2 bg-gray-800 rounded-lg text-blue-400 shrink-0">
-                                    <Github size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-gray-200">1. Obtain Sprites (Optional)</h3>
-                                    <p className="text-xs text-gray-500 leading-relaxed">
-                                        Check the <a href="https://github.com/dowlle/Pokepelago#1-download-the-sprites" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">Poképelago README</a> for instructions on where to find compatible community sprite packs or how to use your own.
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4 items-start">
-                                <div className="p-2 bg-gray-800 rounded-lg text-emerald-400 shrink-0">
-                                    <Download size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-gray-200">2. Local Import</h3>
-                                    <p className="text-xs text-gray-500 leading-relaxed">
-                                        Import the extracted folder through the settings panel to securely store sprites in your browser.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                {/* Incompatibility Warning */}
+                <div className="mb-8 p-6 bg-red-950/30 border border-red-500/30 rounded-3xl backdrop-blur-md animate-in fade-in zoom-in duration-700">
+                    <div className="flex items-center gap-3 mb-3 text-red-400">
+                        <Shield size={24} />
+                        <h2 className="text-xl font-black uppercase tracking-tight">Incompatibility Warning</h2>
                     </div>
+                    <p className="text-red-200/80 text-sm leading-relaxed">
+                        <strong>Important:</strong> Games generated with the <strong>old APWorld</strong> are incompatible with the new client. If you have an active multi-world game using the previous version, you <strong>must</strong> continue using this legacy client to finish it.
+                    </p>
+                </div>
 
-                    {/* Mode Selection */}
-                    <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-right-4 duration-700 delay-300">
-                        <button
-                            onClick={() => {
-                                localStorage.setItem('pokepelago_defaultTab', 'settings');
-                                setGameMode('archipelago');
-                            }}
-                            className="group relative flex-1 text-left p-8 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/30 hover:border-blue-500/50 rounded-3xl transition-all duration-300 active:scale-[0.98]"
-                        >
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-900/20">
-                                    <Globe className="text-white" size={28} />
-                                </div>
-                                <ArrowRight className="text-blue-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                <div className="grid md:grid-cols-2 gap-6 mb-12">
+                    {/* New Repo Card */}
+                    <a
+                        href={NEW_CLIENT_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative flex flex-col p-8 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/30 hover:border-blue-500/50 rounded-3xl transition-all duration-500 hover:shadow-2xl hover:shadow-blue-900/40"
+                    >
+                        <div className="flex justify-between items-start mb-6">
+                            <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-900/20 group-hover:scale-110 transition-transform duration-500">
+                                <Globe className="text-white" size={32} />
                             </div>
-                            <h3 className="text-2xl font-black text-white mb-2">Connect to Archipelago</h3>
-                            <p className="text-blue-200/60 text-sm leading-relaxed">
-                                Sync your progress with a multi-world server. Track items, checks, and hints in real-time.
-                            </p>
-                        </button>
+                            <ExternalLink className="text-blue-500 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+                        </div>
+                        <h3 className="text-3xl font-black text-white mb-3">Launch New Client</h3>
+                        <p className="text-blue-200/60 text-base leading-relaxed mb-6">
+                            Access the latest version of the tracking client directly on GitHub Pages.
+                        </p>
+                        <div className="mt-auto flex items-center gap-2 text-blue-400 font-bold group-hover:gap-4 transition-all">
+                            <span>Go to dowlle.github.io</span>
+                            <ArrowRight size={18} />
+                        </div>
+                    </a>
 
-                        <button
-                            onClick={() => setGameMode('standalone')}
-                            className="group relative flex-1 text-left p-8 bg-gray-800/40 hover:bg-gray-800/60 border border-gray-700/50 hover:border-gray-600 rounded-3xl transition-all duration-300 active:scale-[0.98]"
-                        >
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-3 bg-gray-700 rounded-2xl shadow-lg">
-                                    <Laptop className="text-white" size={28} />
-                                </div>
-                                <ArrowRight className="text-gray-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                    {/* APWorld Release Card */}
+                    <a
+                        href={NEW_APWORLD_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative flex flex-col p-8 bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/30 hover:border-purple-500/50 rounded-3xl transition-all duration-500 hover:shadow-2xl hover:shadow-purple-900/40"
+                    >
+                        <div className="flex justify-between items-start mb-6">
+                            <div className="p-4 bg-purple-600 rounded-2xl shadow-xl shadow-purple-900/20 group-hover:scale-110 transition-transform duration-500">
+                                <Download className="text-white" size={32} />
                             </div>
-                            <h3 className="text-2xl font-black text-white mb-2">Play Standalone</h3>
-                            <p className="text-gray-500 text-sm leading-relaxed">
-                                Play offline as a pure Pokémon guessing game. No server connection required.
-                            </p>
-                        </button>
+                            <ExternalLink className="text-purple-500 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+                        </div>
+                        <h3 className="text-3xl font-black text-white mb-3">Download APWorld</h3>
+                        <p className="text-purple-200/60 text-base leading-relaxed mb-6">
+                            Get the newest server logic, features, and fixes for your Archipelago generation.
+                        </p>
+                        <div className="mt-auto flex items-center gap-2 text-purple-400 font-bold group-hover:gap-4 transition-all">
+                            <span>Get Latest Release</span>
+                            <ArrowRight size={18} />
+                        </div>
+                    </a>
+                </div>
+
+                {/* Technical Reasons & Legacy Access */}
+                <div className="grid md:grid-cols-3 gap-4 mb-12">
+                    <div className="bg-gray-900/40 border border-gray-800/60 rounded-2xl p-6 backdrop-blur-sm">
+                        <div className="flex items-center gap-3 mb-3 text-emerald-400">
+                            <Code2 size={20} />
+                            <h4 className="font-bold text-sm">Official Fork</h4>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                            Now forked from the main Archipelago repo for better compatibility.
+                        </p>
+                    </div>
+                    <div className="bg-gray-900/40 border border-gray-800/60 rounded-2xl p-6 backdrop-blur-sm">
+                        <div className="flex items-center gap-3 mb-3 text-amber-400">
+                            <Beaker size={20} />
+                            <h4 className="font-bold text-sm">Enhanced Testing</h4>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                            New environment makes coding and logic verification much easier.
+                        </p>
+                    </div>
+                    <div className="bg-gray-900/40 border border-gray-800/60 rounded-2xl p-6 backdrop-blur-sm">
+                        <div className="flex items-center gap-3 mb-3 text-blue-400">
+                            <Laptop size={20} />
+                            <h4 className="font-bold text-sm">Dedicated Client</h4>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                            A separate repo allows us to scale the client independently.
+                        </p>
                     </div>
                 </div>
 
-                {/* Footer Info */}
-                <div className="flex flex-wrap justify-center gap-8 text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 animate-in fade-in duration-1000 delay-500">
-                    <a href="https://github.com/dowlle/Pokepelago" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-white transition-colors">
-                        <Github size={12} />
-                        <span>Poképelago GitHub Repo</span>
-                    </a>
-                    <div className="flex items-center gap-2">
-                        <Shield size={12} />
-                        <span>Client-Side Storage Only</span>
+                <div className="flex flex-col items-center gap-6">
+                    <button
+                        onClick={() => {
+                            localStorage.setItem('pokepelago_last_splash', Date.now().toString());
+                            setGameMode('standalone');
+                        }}
+                        className="group relative px-8 py-3 bg-gray-800/50 hover:bg-gray-700/80 border border-gray-700 hover:border-gray-500 rounded-full text-gray-300 hover:text-white text-sm font-bold transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-gray-900/40"
+                    >
+                        <span>Continue with Legacy Client</span>
+                        <ArrowRight size={16} className="opacity-50 group-hover:translate-x-1 group-hover:opacity-100 transition-all" />
+                    </button>
+
+                    <div className="flex flex-wrap justify-center gap-8 text-[10px] font-black uppercase tracking-[0.2em] text-gray-700">
+                        <div className="flex items-center gap-2">
+                            <Shield size={12} />
+                            <span>Client-Side Storage Only</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     );
 };
+
