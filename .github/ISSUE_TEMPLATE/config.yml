@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a Poképelago bug or idea
+    url: https://github.com/dowlle/PokepelagoClient/issues/new/choose
+    about: Poképelago has moved. All bug reports and ideas belong in the client repository, which has the bug, stuck seed and feature forms.
+  - name: The current Poképelago client
+    url: https://dowlle.github.io/PokepelagoClient/
+    about: The live browser client. This repository is kept only so old links still resolve.
+  - name: Latest APWorld release
+    url: https://github.com/dowlle/PokepelagoClient/releases
+    about: The pokepelago.apworld that the person generating the multiworld needs.
